@@ -72,7 +72,7 @@ def lane_proc(img_req, img_q, cmd_q):
       steer_hist.popleft()
 
     last_n = []
-    for i in xrange(len(steer_hist)-3, len(steer_hist)):
+    for i in xrange(max(len(steer_hist)-3, 0), len(steer_hist)):
       last_n.append(steer_hist[i])
 
     cmd_q.put(ControlCommand('steer', int(round(np.median(last_n)))))
