@@ -94,6 +94,8 @@ def control_loop(subprocesses, run, freq=40):
   ws = [WorkerState() for _ in subprocesses]
 
   try:
+    cardriver.setup()
+
     while run.is_set():
       start_time = time.time()
 
@@ -130,7 +132,7 @@ def control_loop(subprocesses, run, freq=40):
       if wait_time > 0: time.sleep(wait_time)
 
   finally:
-    if not TESTMODE: cardriver.reset()
+    if not TESTMODE: cardriver.stop()
 
 def main():
   '''Initialize the camera, spin up the workers, and start the main loop'''
