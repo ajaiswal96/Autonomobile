@@ -15,11 +15,11 @@ SMILEY_SIZE_THRESHOLD = 0.1
 
 SMILEY_COUNT = 1
 
-lastframes = deque(10*[0], 10)
-
 def smiley_proc(img_req, img_q, cmd_q):
   '''The stop sign worker process.'''
   classifier = cv2.CascadeClassifier(SMILEY_PARAMS)
+
+  lastframes = deque([0]*7, 7)
 
   while True:
     # get a frame, and save a copy of it for later
@@ -30,13 +30,13 @@ def smiley_proc(img_req, img_q, cmd_q):
     now = time.time()
 
     # do the cascade classifier
-    #signs = classifier.detectMultiScale(fr, 1.02, 10)
-    signs = classifier.detectMultiScale(fr, 1.3, 5)
+    signs = classifier.detectMultiScale(fr, 1.1, 3)
 
     isSign = False
 
     for x, y, w, h in signs:
       isSign = True
+      print w, h
       if(w >= 60 and h >= 60):
         lastframes.append(1)
         break
@@ -44,7 +44,7 @@ def smiley_proc(img_req, img_q, cmd_q):
     if not isSign:
       lastframes.append(0)     
 
-    if lastframes.count(1) >= 5: 
+    if lastframes.count(1) >= 2:
       cmd_q.put(ControlCommand('start'))
       cmd_q.put(ControlCommand('speed', 0))
 
