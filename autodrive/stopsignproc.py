@@ -31,8 +31,8 @@ def stopsign_proc(img_req, img_q, cmd_q):
     now = time.time()
 
     # do the cascade classifier
-    #signs = classifier.detectMultiScale(fr, 1.02, 10)
-    signs = classifier.detectMultiScale(fr, 1.02, 5)
+    #signs = classifier.detectMultiScale(fr, 1.3, 5)
+    signs = classifier.detectMultiScale(fr, 1.3, 3)
 
     for x, y, w, h in signs:
       sz = (float(w) + float(h)) / 2.0
