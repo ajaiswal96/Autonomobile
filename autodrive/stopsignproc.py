@@ -31,15 +31,20 @@ def stopsign_proc(img_req, img_q, cmd_q):
     signs = classifier.detectMultiScale(fr, 1.02, 10)
 
     # classify the signs
-    largest_sign = -1
-    for x, y, w, h in signs:
-      subfr = color_fr[y:y+h, x:x+w, :]
-      subft = cv2.resize(subfr, (25, 25))
-      if is_stopsign(subfr) and w*h > largest_sign:
-        largest_sign = w*h
+    #largest_sign = -1
+    #for x, y, w, h in signs:
+    #  subfr = color_fr[y:y+h, x:x+w, :]
+    #  subft = cv2.resize(subfr, (25, 25))
+    #  if is_stopsign(subfr) and w*h > largest_sign:
+    #    largest_sign = w*h
+
+    if len(signs) > 0:
+      print 'sign!!!!!', len(signs)
 
     # saw a big stop sign, so stop for a bit
-    if float(largest_sign) / w > SIGN_SIZE_THRESHOLD:
+    #if float(largest_sign) / w > SIGN_SIZE_THRESHOLD:
+    if len(signs) > 0:
+      time.sleep(0.5)
       cmd_q.put(ControlCommand('start'))
       cmd_q.put(ControlCommand('speed', 0))
       time.sleep(2)

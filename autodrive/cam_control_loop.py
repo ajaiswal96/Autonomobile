@@ -32,7 +32,7 @@ SUBPROCESSES = (
 )
 
 # When true, don't do the actual car things
-TESTMODE = True
+TESTMODE = False
 
 
 class ImageProcessor(object):

@@ -82,7 +82,7 @@ def to_error(ll, rr, th):
 
 def get_recorder(out_fname, codec='XVID'):
   '''Get a cv2 VideoWriter instance.'''
-  major_ver, minor_ver, subminor_ver = cv2.__version__.split('.')
+  major_ver, minor_ver, subminor_ver = cv2.__version__.split('.')[:3]
 
   if int(major_ver) < 3 :
     fourcc = cv2.cv.CV_FOURCC(*codec)
