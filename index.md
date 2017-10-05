@@ -18,8 +18,11 @@ The setup for the Jetson is pretty straight forwards. Installing linux is a 1 li
 We're still waiting on our hardware to arrive, though we know what libraries and languages we will be using, so this week we focused on setting up our personal machines to match those. Below is a brief description of what was done by each member
 
 ### Kevin
+Used openCV to do a perspective trasnform on an image to get a top down view of an image taken at an anlge. This is an important step in our algorithm as it will make it easier to detect turns and curves in lanes. 
 
 ### Anubhav
 Installed libraries such as openCV and numPY, and read up on image transformation algorithms to transform the field of view to point straight down at the subject rather than at an angle. 
 
 ### Prashant
+Used MATLAB to see if edge detection algorithms from a still camera image is a viable option. Is currently finetuning the code to test this hypothesis. 
+
