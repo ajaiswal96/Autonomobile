@@ -14,3 +14,12 @@ Once we can accurately detect the lanes in the image, we will use their placemen
 #### Jetson Setup
 The setup for the Jetson is pretty straight forwards. Installing linux is a 1 line command-line prompt. There is an optional GUI that can be installed, though we will not be doing so. The fastest way of downloading the drivers we need is by running an ubuntu vm and installing JetPack using the IP address of the Jetson. This process also installs CUDA, which will be a fundamental part of optimizing our lane detection algorithms. The Jetson contains only 1 USB 3.0 port, so we will need to use a hub in order to connect more peripherals (if we choose to connect the peripherals via USB). The board does contain a 125 pin expansion slot, which can be used for UART with peripherals, and some of the pins can be used for GPIO, though we will probably only use this for interfacing with the motors, as those will probably have a set of power and ground wires each (we aren’t sure yet since we don’t have the physical RC car). The only issue is there are just 7 GPIO pins, and we may need 8 (depending if there are 2 motor controls + steering control, in which we need 6 or if there is an independent motor per wheel, in which case we would probably need 8). There is a JTAG port which can come in handy when debugging. 
 
+### 10/5/17
+We're still waiting on our hardware to arrive, though we know what libraries and languages we will be using, so this week we focused on setting up our personal machines to match those. Below is a brief description of what was done by each member
+
+### Kevin
+
+### Anubhav
+Installed libraries such as openCV and numPY, and read up on image transformation algorithms to transform the field of view to point straight down at the subject rather than at an angle. 
+
+### Prashant
