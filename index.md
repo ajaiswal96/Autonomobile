@@ -1,4 +1,28 @@
 ## Blog
+### 10/12/17
+We received our parts on Tuesday and are getting familiar with them. 
+
+Kevin looked into the RC car and discovered the following about how the controllers works
+
+#### Radio controller. 
+This controller accepts radio signals from the remote control, and emits PWM encoded signals for the speed and steering controllers. It’s powered by DC input from the speed controller, and supplies power for the steering controller.
+
+#### Speed controller. 
+This controller is connected to the main drive motor, and the battery of the car. It accepts a PWM signal from the radio controller, which determines in what direction and how fast the motor should spin. It also downsteps the battery voltage, and supplies DC power to the radio controller, which is subsequently used by the steering controller.
+
+#### Steering controller. 
+This controller is connected to the steering motor of the car. It accepts a PWM signal and DC power from the radio controller, which powers and determines the position it should place the steering motor in.
+
+#### Next steps. 
+We now need to reverse engineer the radio controller component into software that can be run by the Jetson, so that we can control the car via software. This should be fairly straightforward, as the control lines for the speed and steering controllers are just simple PWM signals.
+### Kevin
+I took apart the RC car, and poked around its internals. The car is composed of three main circuits: A radio receiver, a speed controller, and a steering controller.
+
+### Anubhav 
+Had a heavy workload this week, so was unable to put as much effort as hoped. Configured local environment to match that on the jetson and researched how to write the necessary drivers to connect to the car. Will be coming in Friday to work some more. 
+
+### Prashant
+Looked into CV algorithms in order to calculate the probability of which direction the car is turning based on camera input. 
 
 ### 10/5/17
 We're still waiting on our hardware to arrive, though we know what libraries and languages we will be using, so this week we focused on setting up our personal machines to match those. Below is a brief description of what was done by each member. We focused primarily on implementing an image transformation algorithm like the one below in order to process the images received from our camera. 
