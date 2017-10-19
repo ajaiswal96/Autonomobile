@@ -4,7 +4,9 @@
 We are having a difficult time actually connecting to our Jetson since we are unable to SSH into it as previously planned because CMU NetReg is unaware of the ethernet ports in HH 1307, so we cannot obtain a static IP and register our device. A workaround we are trying is by ordering an HDMI cable and a USB hub so we can directly interface with the Jetson. This is not a permanent solution, however, since it limits the number of people working on it to one at a time, and the user needs to have physical control of the Jetson to run any code.
 
 ### Kevin
-Worked on the drivers as well. Looked into how to configure the GPIO to match the voltage necessary for the motors on the car. (The GPIO on the Jetson are set to 3v, though the car needs 5V)
+Haven’t been able to do much this week due to other commitments. I spent some time refining the lane detection transformation to yield more consistent images, and collected some images from the camera we have to test on. I also researched some next steps in the processing pipeline to go from the lanes detected to steering instructions.
+
+Because it’s hard to collect (image, steering direction) training data by ourselves at this point (since our car isn’t hooked up to the Jetson yet), it seems like a reasonable next step would be to use some [public data](https://github.com/udacity/self-driving-car/tree/master/datasets) to test a few models before we get our own data.
 
 ### Anubhav 
 Started writing a driver for the forwards/reverse motor to output a given duty cycle from the GPIO on the Jetson. Looked into ways of interfacing with the Jetson after trying to establish a static connection via ethernet. Is going to look into whom to talk to in order to fix the issue on NetReg and register the device. Is staying on campus for midsemester break so will have time to work on teh driver. 
