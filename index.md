@@ -1,4 +1,17 @@
 ## Blog
+### 10/19/17
+#### Issues
+We are having a difficult time actually connecting to our Jetson since we are unable to SSH into it as previously planned because CMU NetReg is unaware of the ethernet ports in HH 1307, so we cannot obtain a static IP and register our device. A workaround we are trying is by ordering an HDMI cable and a USB hub so we can directly interface with the Jetson. This is not a permanent solution, however, since it limits the number of people working on it to one at a time, and the user needs to have physical control of the Jetson to run any code.
+### Anubhav 
+Started writing a driver for the forwards/reverse motor to output a given duty cycle from the GPIO on the Jetson. Looked into ways of interfacing with the Jetson after trying to establish a static connection via ethernet. Is going to look into whom to talk to in order to fix the issue on NetReg and register the device. Is staying on campus for midsemester break so will have time to work on teh driver. 
+
+### Prashant
+Been doing some research on generalized hough transforms, regular hough transforms only allow for straight line edge detection. There are no implementations in python for it, but there is a c++ algorithm for it. Possibly can engineer a python version for it. Generalized hough transforms are useful for finding contours in images, which allows the car to find curves in a road. 
+Looking through this paper for clues: http://homepages.inf.ed.ac.uk/rbf/BOOKS/BANDB/LIB/bandb4_3.pdf
+
+### Kevin
+Worked on the drivers as well. Looked into how to configure the GPIO to match the voltage necessary for the motors on the car. (The GPIO on the Jetson are set to 3v, though the car needs 5V)
+
 ### 10/12/17
 We received our parts on Tuesday and are getting familiar with them. 
 
