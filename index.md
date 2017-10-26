@@ -1,4 +1,13 @@
 ## Blog
+### 10/26/27
+
+### Prashant
+Working with image transforms and drawing lines from Canny edge detection. The only issue that seems to arise based on this transform is that the lines become somewhat blurry, and these are the most important parts of the vision (in terms of being able to follow the lane). As of right now, I’m trying to code an effective line detector that will only focus on the lane lines and nothing else.
+![Output from transform](https://user-images.githubusercontent.com/25559078/32071143-5fea58ee-ba5c-11e7-8878-a8b7be78662e.png)
+
+### Kevin and Anubhav
+Tried using the built in PWM on the Jetson, thought that did not work, leading us to update the OS and drivers on the device. The built in PWM still does not work, so we are in the process of writing C drivers based on the system clock. We are also going to try using an Arduino for PWM as that might be more accurate and simpler. (The jetson will compute what values to send, and send them to the arduino which will be in charge of outputting the correct signal). 
+
 ### 10/19/17
 #### Issues
 We are having a difficult time actually connecting to our Jetson since we are unable to SSH into it as previously planned because CMU NetReg is unaware of the ethernet ports in HH 1307, so we cannot obtain a static IP and register our device. A workaround we are trying is by ordering an HDMI cable and a USB hub so we can directly interface with the Jetson. This is not a permanent solution, however, since it limits the number of people working on it to one at a time, and the user needs to have physical control of the Jetson to run any code.
