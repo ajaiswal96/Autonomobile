@@ -1,4 +1,15 @@
 ## Blog
+### 11/2/17
+
+Had midsemester demos on Tuesday. 
+
+### Prashant
+Figured out a solid lane detection algorithm using Canny. Give or take some noise, the algorithm is able to find the lane lines and do a polynomial fit on them. The coefficients could then determine how sharp the curvature of the lane ahead is. The only issue with the algorithm at this point is runtime. With about a 0.5 second runtime, it can only use 2 frames a second, which is not at all good enough when it comes to real time analysis of the road. Currently trying to find ways to reduce runtime, such as using smaller images and not having to do the perspective transform for every frame of the video, and instead using deltas to estimate the next frame. 
+
+### Kevin and Anubhav
+We managed to get the native PWM working by manipulating the kernel. After that we wrote a driver to control both steering and speed so that our car can completely be controlled via keyboard input to the Jetson. We plan to change this once we know the outputs of the CV algorithm to work with that. Currently we are working on a way to smooth out the transitions in the driver.
+
+
 ### 10/26/27
 
 ### Prashant
