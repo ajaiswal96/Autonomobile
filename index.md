@@ -1,4 +1,12 @@
 ## Blog
+### 11/9/17
+
+### Prashant
+Working on optimizing the algorithm for still images for now, didnt have much time to work on capstone this week.
+
+### Kevin and Anubhav
+Finished the smooth driver for the car so transitions are gradual. Looking into ways to assemble car, ordered batteries and holders in order to mount the Jetson on the RC car. We will be transitioning to help Prashant with the CV side now. 
+
 ### 11/2/17
 
 Had midsemester demos on Tuesday. 
