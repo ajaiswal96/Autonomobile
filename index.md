@@ -5,6 +5,11 @@
 ### Prashant
 Trying to integrate my polyfit algorithm with the code to binarize the images. However, the code is still running slowly relative to the speed at which we need the calculations, so I am researching possible ways to do incremental transforms using the frames instead of recalculating the perspective each time. 
 
+### Anubhav
+Looking into other CV algorithms in order to have an alternative for the CV algorithm Prashant is working on. Was busy this week because am leaving today, though I will have plenty of time over break to write a first draft algorithm. The goal will be to finish polyfit and be able to remove noise from the image. My approach will probably be simpler than the one that Prashant is working on.
+
+
+
 ### 11/9/17
 
 ### Prashant
