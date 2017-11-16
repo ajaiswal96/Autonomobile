@@ -10,6 +10,9 @@ Also going to look into using live feeds for images in order to integrate the CV
 ### Anubhav
 Looking into other CV algorithms in order to have an alternative for the CV algorithm Prashant is working on. Was busy this week because am leaving today, though I will have plenty of time over break to write a first draft algorithm. The goal will be to finish polyfit and be able to remove noise from the image. My approach will probably be simpler than the one that Prashant is working on.
 
+### Kevin 
+I've been reviewing this paper: http://ieeexplore.ieee.org/document/1603550/ to see if we can get any insights into how we can improve the way we're approaching the problem. One of the main insights is to use steerable filters to efficiently extract signals (eg. lane markings) in the image going in certain directions. This will help us filter out some of the extraneous lines and noise from the image. Additionally, we're working on fine-tuning our model of the road, to help make our models more efficient and robust.
+
 ### 11/9/17
 
 ### Prashant
