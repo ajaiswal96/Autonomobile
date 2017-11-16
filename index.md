@@ -1,4 +1,10 @@
 ## Blog
+
+## 11/16/17
+
+### Prashant
+Trying to integrate my polyfit algorithm with the code to binarize the images. However, the code is still running slowly relative to the speed at which we need the calculations, so I am researching possible ways to do incremental transforms using the frames instead of recalculating the perspective each time. 
+
 ### 11/9/17
 
 ### Prashant
