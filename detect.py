@@ -1,0 +1,264 @@
+import cv2
+import numpy as np
+import matplotlib.pyplot as plt
+import scipy
+
+
+DEBUG = True
+
+# How far down the horizon is
+HORIZON = 0.4
+
+# Matrix to transform the image into a topdown view
+TOPDOWN = (
+   0.33, 0.67,   # top left, top right
+  -0.10, 1.10,   # bottom left, bottom right
+)
+
+# nxn - how big the kernels are
+KERN_SIZE = 18
+
+def gauss2d(size, gtype, direction):
+  def g(x, y):
+    return np.exp(-(x**2+y**2))
+
+  def g1a(x, y):
+    return -2.0 * x * g(x, y)
+  def g1b(x, y):
+    return -2.0 * y * g(x, y)
+
+  def g2a(x, y):
+    return 0.9213 * (2.0*x**2-1.0) * g(x, y)
+  def g2b(x, y):
+    return 1.843 * x * y * g(x, y)
+  def g2c(x, y):
+    return 0.9213 * (2.0*y**2-1.0) * g(x, y)
+
+  def g2ha(x, y):
+    return 0.978 * (-2.254*x + x**3) * g(x, y)
+  def g2hb(x, y):
+    return 0.978 * (-0.7515 + x**2) * y * g(x, y)
+  def g2hc(x, y):
+    return 0.978 * (-0.7515 + y**2) * x * g(x, y)
+  def g2hd(x, y):
+    return 0.978 * (-2.254*y + y**3) * g(x, y)
+
+  gfn = {
+    '1:a': g1a,
+    '1:b': g1b,
+
+    '2:a': g2a,
+    '2:b': g2b,
+    '2:c': g2c,
+
+    '2h:a': g2ha,
+    '2h:b': g2hb,
+    '2h:c': g2hc,
+    '2h:d': g2hd,
+  }[gtype + ':' + direction]
+
+  xx = np.linspace(-2.3, +2.3, num=size)
+  yy = np.linspace(+2.3, -2.3, num=size)
+
+  result = np.zeros((size, size))
+
+  for i in xrange(size):
+    for j in xrange(size):
+      x = xx[j]
+      y = yy[i]
+      result[j][i] = gfn(x, y)
+
+  return result
+
+def transform_topdown(fr):
+  h, w = fr.shape
+
+  dst = np.array([
+    [0, 0], [w, 0],
+    [w, h], [0, h],
+  ], dtype=np.float32)
+
+  src = np.array([
+    [TOPDOWN[0]*w, 0], [TOPDOWN[1]*w, 0],
+    [TOPDOWN[3]*w, h], [TOPDOWN[2]*w, h],
+  ], dtype=np.float32)
+
+  if DEBUG:
+    # show a debug frame
+    fr_dbg = fr.copy()
+    cv2.line(fr_dbg, tuple(src[0]), tuple(src[3]), (0, 0, 255), 4)
+    cv2.line(fr_dbg, tuple(src[1]), tuple(src[2]), (0, 0, 255), 4)
+    cv2.imshow('to transform', fr_dbg)
+
+  mat, status = cv2.findHomography(src, dst)
+  trans = cv2.warpPerspective(fr, mat, (w, h))
+  result = cv2.resize(trans, (w, h*3))
+
+  return result
+
+def crop_road(fr):
+  h, w = fr.shape
+  new_h = int(round(h*HORIZON))
+  return fr[new_h:, :]
+
+def blur(fr):
+  #return fr
+  return cv2.bilateralFilter(fr, KERN_SIZE/2, 75, 75)
+
+def edges(fr):
+  edges = cv2.Canny(fr, 20, 100)
+  return edges
+  #return fr
+
+def gauss(fr):
+  pts = np.array([
+    [0, 0],
+    [KERN_SIZE, 0],
+    [KERN_SIZE, KERN_SIZE],
+    [0, KERN_SIZE],
+  ], dtype=np.int32)
+
+  #g1a = gauss2d(KERN_SIZE, gtype='1', direction='a')
+  #g1b = gauss2d(KERN_SIZE, gtype='1', direction='b')
+
+  #fra = cv2.filter2D(fr, -1, g1a)
+  #frb = cv2.filter2D(fr, -1, g1b)
+
+  #for th in np.linspace(0, 4*np.pi, num=4*180):
+  #  result = (
+  #    + np.cos(th) * g1a
+  #    + np.sin(th) * g1b
+  #  )
+  #  result = cv2.filter2D(fr, -1, result)
+  #  x0, y0 = 100, 100
+  #  x1, y1 = int(x0 + 100 * np.cos(th)), int(y0 - 100 * np.sin(th))
+  #  cv2.line(result, (x0, y0), (x1, y1), (255, 255, 255), 4)
+
+  #  print '%+02d' % (th / np.pi * 180)
+  #  cv2.imshow('steer', result)
+
+  #  if chr(cv2.waitKey() & 0xff) == 'q':
+  #    break
+
+  g2xx = gauss2d(KERN_SIZE, gtype='2', direction='a')
+  g2xy = gauss2d(KERN_SIZE, gtype='2', direction='b')
+  g2yy = gauss2d(KERN_SIZE, gtype='2', direction='c')
+
+  frxx = cv2.filter2D(fr, -1, g2xx)
+  frxy = cv2.filter2D(fr, -1, g2xy)
+  fryy = cv2.filter2D(fr, -1, g2yy)
+
+  #aaaa = np.sqrt(g2xx**2 - 2*g2xx*g2yy + g2yy**2 + 4*g2xy)
+  #thmin = (g2xx - g2yy - aaaa) / (2 * g2xy)
+  #thmax = (g2xx - g2yy + aaaa) / (2 * g2xy)
+
+  for th in np.linspace(0, 4*np.pi, num=4*180):
+    print '=========', round(th/np.pi*180)
+
+    result = (
+      + np.cos(th) * np.cos(th) * g2xx
+      + np.cos(th) * np.sin(th) * g2xy
+      + np.sin(th) * np.sin(th) * g2yy
+    )
+
+    result = cv2.filter2D(fr, -1, result)
+
+    x0, y0 = 100, 100
+    x1, y1 = int(x0 + 100 * np.cos(th)), int(y0 - 100 * np.sin(th))
+    cv2.line(result, (x0, y0), (x1, y1), (255, 255, 255), 4)
+
+    cv2.imshow('steer', result)
+    #cv2.imshow('xx', frxx)
+    #cv2.imshow('xy', frxy)
+    #cv2.imshow('yy', fryy)
+    if chr(cv2.waitKey() & 0xff) == 'q':
+      break
+
+  return frxx
+
+  #g2ha = gauss2d(KERN_SIZE, gtype='2h', direction='a')
+  #g2hb = gauss2d(KERN_SIZE, gtype='2h', direction='b')
+  #g2hc = gauss2d(KERN_SIZE, gtype='2h', direction='c')
+  #g2hd = gauss2d(KERN_SIZE, gtype='2h', direction='d')
+
+  #fra = cv2.filter2D(fr, -1, g2ha)
+  #frb = cv2.filter2D(fr, -1, g2hb)
+  #frc = cv2.filter2D(fr, -1, g2hc)
+  #frd = cv2.filter2D(fr, -1, g2hd)
+
+  #for th in np.linspace(0, 4*np.pi, num=4*180):
+  #  result = (
+  #    np.cos(th)**3 * g2ha
+  #    - 3.0 * np.cos(th)**2 * np.sin(th) * g2hb
+  #    + 3.0 * np.cos(th) * np.sin(th)**2 * g2hc
+  #    - np.sin(th)**3 * g2hb
+  #  )
+  #  result = cv2.filter2D(fr, -1, result)
+  #  x0, y0 = 100, 100
+  #  x1, y1 = int(x0 + 100 * np.cos(th)), int(y0 - 100 * np.sin(th))
+  #  cv2.line(result, (x0, y0), (x1, y1), (255, 255, 255), 4)
+  #  print '%+02d' % (th / np.pi * 180)
+  #  cv2.imshow('steer', result)
+
+  #  if chr(cv2.waitKey() & 0xff) == 'q':
+  #    break
+
+  return fra
+
+def hough(fr, orig):
+  lines = cv2.HoughLines(fr,1,np.pi/180,200)
+  for line in lines[:5]:
+    rho, theta = line[0]
+    a = np.cos(theta)
+    b = np.sin(theta)
+    x0 = a*rho
+    y0 = b*rho
+    x1 = int(x0 + 1000*(-b))
+    y1 = int(y0 + 1000*(a))
+    x2 = int(x0 - 1000*(-b))
+    y2 = int(y0 - 1000*(a))
+
+    cv2.line(fr,(x1,y1),(x2,y2),(0,0,255),2)
+  return fr
+
+def detect_lanes(fr):
+  pipeline = (
+    crop_road,
+    #blur,
+    transform_topdown,
+    gauss,
+    #edges,
+    #hough,
+  )
+
+  orig = np.copy(fr)
+
+  for img_step in pipeline:
+    if img_step.__name__ == 'hough':
+      fr = img_step(fr, orig)
+    else:
+      fr = img_step(fr)
+    if DEBUG:
+      cv2.imshow(img_step.__name__, fr)
+
+def main():
+  #vid = cv2.VideoCapture('driving_long.mp4')
+  #vid.set(1, 40000)
+  #vid = cv2.VideoCapture('test_track_2.mkv')
+  #vid.set(1, 230)
+  vid = cv2.VideoCapture('test_track_3.mkv')
+
+  while True:
+    ret, fr = vid.read()
+    if not ret:
+      break
+
+    fr = cv2.cvtColor(fr, cv2.COLOR_BGR2GRAY)
+
+    detect_lanes(fr)
+
+    if chr(cv2.waitKey() & 0xff) == 'q':
+      break
+
+if __name__ == '__main__':
+  main()
