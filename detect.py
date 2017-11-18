@@ -225,41 +225,25 @@ def gauss(fr):
       + abs(1.0 * np.sin(th)**3             )
     )
 
-    result_orig = np.clip(
+    result = np.clip(
       + 1.0 * np.cos(th)**3              * fra
       - 3.0 * np.cos(th)**2 * np.sin(th) * frb
       + 3.0 * np.sin(th)**2 * np.cos(th) * frc
       - 1.0 * np.sin(th)**3              * frb
     , -1.0, 1.0)
 
-    kern = (
-      + 1.0 * np.cos(th)**3              * g2ha
-      - 3.0 * np.cos(th)**2 * np.sin(th) * g2hb
-      + 3.0 * np.sin(th)**2 * np.cos(th) * g2hc
-      - 1.0 * np.sin(th)**3              * g2hb
-    )
+    print 'ORIG %0.2f %0.2f' % (result.min(), result.max())
 
-    result_kern = cv2.filter2D(fr, cv2.CV_32FC1, kern)
-    result_kern /= sf
-    result_kern = np.clip(result_kern, -1.0, 1.0)
-
-    #result /= result.max()
-    print 'ORIG %0.2f %0.2f' % (result_orig.min(), result_orig.max())
-    print 'KERN %0.2f %0.2f' % (result_kern.min(), result_kern.max())
-
-    result_orig = (np.absolute(result_orig) * 255).astype(np.uint8)
-    result_kern = (np.absolute(result_kern) * 255).astype(np.uint8)
+    result = (np.absolute(result) * 255).astype(np.uint8)
 
     #result = cv2.Canny(result, 100, 1100)
 
     # draw a line
     x0, y0 = 100, 100
     x1, y1 = int(x0 + 100 * np.cos(th)), int(y0 - 100 * np.sin(th))
-    cv2.line(result_orig, (x0, y0), (x1, y1), (255, 255, 255), 4)
-    cv2.line(result_kern, (x0, y0), (x1, y1), (255, 255, 255), 4)
+    cv2.line(result, (x0, y0), (x1, y1), (255, 255, 255), 4)
 
-    cv2.imshow('steer-orig', result_orig)
-    cv2.imshow('steer-kern', result_kern)
+    cv2.imshow('steer', result)
 
     print '%+02d' % (th / np.pi * 180)
 
