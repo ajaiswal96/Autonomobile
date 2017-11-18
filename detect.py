@@ -18,6 +18,8 @@ TOPDOWN = (
 # nxn - how big the kernels are
 KERN_SIZE = 15
 
+KERN_CACHE = dict()
+
 def gauss2d(size, gtype, direction):
   def g(x, y):
     return np.exp(-(x**2+y**2))
@@ -42,6 +44,10 @@ def gauss2d(size, gtype, direction):
     return 0.978 * (-0.7515 + y**2) * x * g(x, y)
   def g2hd(x, y):
     return 0.978 * (-2.254*y + y**3) * g(x, y)
+
+  key = gtype + ':' + direction + str(size)
+  if key in KERN_CACHE:
+    return KERN_CACHE[key]
 
   gfn = {
     '1:a': g1a,
@@ -68,7 +74,11 @@ def gauss2d(size, gtype, direction):
       y = yy[i]
       result[j][i] = gfn(x, y)
 
-  return result / np.absolute(result).sum() * 8
+  result = result / np.absolute(result).sum() * 8
+
+  KERN_CACHE[key] = result
+
+  return result
 
 def to_grayscale(fr):
   return cv2.cvtColor(fr, cv2.COLOR_BGR2GRAY)
@@ -100,19 +110,21 @@ def transform_topdown(fr):
   return result
 
 def crop_road(fr):
-  h, w = fr.shape
+  h, w, c = fr.shape
   new_h = int(round(h*HORIZON))
   return fr[new_h:, :]
 
 def blur(fr):
-  #return fr
-  return cv2.bilateralFilter(fr, KERN_SIZE/2, 75, 75)
+  ITERS = 2
+  for _ in xrange(ITERS):
+    fr = cv2.bilateralFilter(fr, BLUR_KERN_SIZE, 30, 5)
+  return fr
 
 def edges(fr):
   return cv2.Canny(fr, 100, 1100)
 
 def gauss(fr):
-  # compute the 2nd deriv gaussian basis kernels
+  # get the 2nd deriv gaussian basis kernels
   g2ha = gauss2d(KERN_SIZE, gtype='2h', direction='a')
   g2hb = gauss2d(KERN_SIZE, gtype='2h', direction='b')
   g2hc = gauss2d(KERN_SIZE, gtype='2h', direction='c')
