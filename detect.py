@@ -22,7 +22,7 @@ KERN_SIZE = 15
 KERN_CACHE = dict()
 
 # nxn - how big the bilateral kernels are
-BLUR_KERN_SIZE = 6
+BLUR_KERN_SIZE = 4
 
 def gauss2d(size, gtype, direction):
   def g(x, y):
@@ -119,9 +119,9 @@ def crop_road(fr):
   return fr[new_h:, :]
 
 def blur(fr):
-  ITERS = 2
+  ITERS = 4
   for _ in xrange(ITERS):
-    fr = cv2.bilateralFilter(fr, BLUR_KERN_SIZE, 30, 5)
+    fr = cv2.bilateralFilter(fr, BLUR_KERN_SIZE, 30, 1000)
   return fr
 
 def edges(fr):
