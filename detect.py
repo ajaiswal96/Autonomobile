@@ -2,6 +2,7 @@ import cv2
 import numpy as np
 import matplotlib.pyplot as plt
 import scipy
+import time
 
 
 DEBUG = True
@@ -19,6 +20,9 @@ TOPDOWN = (
 KERN_SIZE = 15
 
 KERN_CACHE = dict()
+
+# nxn - how big the bilateral kernels are
+BLUR_KERN_SIZE = 6
 
 def gauss2d(size, gtype, direction):
   def g(x, y):
@@ -204,22 +208,24 @@ def hough(fr, orig):
 
 def detect_lanes(fr):
   pipeline = (
-    to_grayscale,
     crop_road,
-    #blur,
+    blur,
+    to_grayscale,
     gauss,
-    transform_topdown,
+    #transform_topdown,
     #edges,
     #hough,
   )
 
-  orig = np.copy(fr)
+  cv2.imshow('original', fr)
+
+  print '================='
 
   for img_step in pipeline:
-    if img_step.__name__ == 'hough':
-      fr = img_step(fr, orig)
-    else:
-      fr = img_step(fr)
+    start = time.time()
+    fr = img_step(fr)
+    end = time.time()
+    print '-->', int((end-start)*1000), img_step.__name__
     if DEBUG:
       cv2.imshow(img_step.__name__, fr)
 
