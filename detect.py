@@ -12,11 +12,11 @@ HORIZON = 0.4
 # Matrix to transform the image into a topdown view
 TOPDOWN = (
    0.33, 0.67,   # top left, top right
-  -0.10, 1.10,   # bottom left, bottom right
+   0.00, 1.00,   # bottom left, bottom right
 )
 
 # nxn - how big the kernels are
-KERN_SIZE = 18
+KERN_SIZE = 15
 
 def gauss2d(size, gtype, direction):
   def g(x, y):
@@ -60,7 +60,7 @@ def gauss2d(size, gtype, direction):
   xx = np.linspace(-2.3, +2.3, num=size)
   yy = np.linspace(+2.3, -2.3, num=size)
 
-  result = np.zeros((size, size))
+  result = np.zeros((size, size), dtype=np.float32)
 
   for i in xrange(size):
     for j in xrange(size):
@@ -68,7 +68,7 @@ def gauss2d(size, gtype, direction):
       y = yy[i]
       result[j][i] = gfn(x, y)
 
-  return result
+  return result / np.absolute(result).sum() * 8
 
 def transform_topdown(fr):
   h, w = fr.shape
@@ -92,7 +92,7 @@ def transform_topdown(fr):
 
   mat, status = cv2.findHomography(src, dst)
   trans = cv2.warpPerspective(fr, mat, (w, h))
-  result = cv2.resize(trans, (w, h*3))
+  result = cv2.resize(trans, (w, h*1))
 
   return result
 
@@ -106,9 +106,7 @@ def blur(fr):
   return cv2.bilateralFilter(fr, KERN_SIZE/2, 75, 75)
 
 def edges(fr):
-  edges = cv2.Canny(fr, 20, 100)
-  return edges
-  #return fr
+  return cv2.Canny(fr, 100, 1100)
 
 def gauss(fr):
   pts = np.array([
@@ -126,84 +124,149 @@ def gauss(fr):
 
   #for th in np.linspace(0, 4*np.pi, num=4*180):
   #  result = (
-  #    + np.cos(th) * g1a
-  #    + np.sin(th) * g1b
+  #    + np.cos(th) * fra
+  #    + np.sin(th) * frb
   #  )
-  #  result = cv2.filter2D(fr, -1, result)
+
+  #  print result.min(), result.max()
+
+  #  #result = cv2.filter2D(fr, -1, result)
   #  x0, y0 = 100, 100
   #  x1, y1 = int(x0 + 100 * np.cos(th)), int(y0 - 100 * np.sin(th))
   #  cv2.line(result, (x0, y0), (x1, y1), (255, 255, 255), 4)
 
   #  print '%+02d' % (th / np.pi * 180)
   #  cv2.imshow('steer', result)
+  #  cv2.imshow('x', fra)
+  #  cv2.imshow('y', frb)
 
   #  if chr(cv2.waitKey() & 0xff) == 'q':
   #    break
 
-  g2xx = gauss2d(KERN_SIZE, gtype='2', direction='a')
-  g2xy = gauss2d(KERN_SIZE, gtype='2', direction='b')
-  g2yy = gauss2d(KERN_SIZE, gtype='2', direction='c')
+  #return fra
 
-  frxx = cv2.filter2D(fr, -1, g2xx)
-  frxy = cv2.filter2D(fr, -1, g2xy)
-  fryy = cv2.filter2D(fr, -1, g2yy)
+  ###########################
 
-  #aaaa = np.sqrt(g2xx**2 - 2*g2xx*g2yy + g2yy**2 + 4*g2xy)
-  #thmin = (g2xx - g2yy - aaaa) / (2 * g2xy)
-  #thmax = (g2xx - g2yy + aaaa) / (2 * g2xy)
+  #g2a = gauss2d(KERN_SIZE, gtype='2', direction='a')
+  #g2b = gauss2d(KERN_SIZE, gtype='2', direction='b')
+  #g2c = gauss2d(KERN_SIZE, gtype='2', direction='c')
+
+  #fra = cv2.filter2D(fr, -1, g2a)
+  #frb = cv2.filter2D(fr, -1, g2b)
+  #frc = cv2.filter2D(fr, -1, g2c)
+
+  ##aaaa = np.sqrt(g2xx**2 - 2*g2xx*g2yy + g2yy**2 + 4*g2xy)
+  ##thmin = (g2xx - g2yy - aaaa) / (2 * g2xy)
+  ##thmax = (g2xx - g2yy + aaaa) / (2 * g2xy)
+
+  #for th in np.linspace(0, 4*np.pi, num=4*180):
+  #  print '=========', round(th/np.pi*180)
+
+  #  result = (
+  #    + np.cos(th) * np.cos(th) * g2a
+  #    + np.cos(th) * np.sin(th) * g2b
+  #    - np.sin(th) * np.sin(th) * g2c
+  #  )
+
+  #  #plt.matshow(result)
+  #  #plt.show()
+
+  #  result = cv2.filter2D(fr, -1, result)
+
+  #  x0, y0 = 100, 100
+  #  x1, y1 = int(x0 + 100 * np.cos(th)), int(y0 - 100 * np.sin(th))
+  #  cv2.line(result, (x0, y0), (x1, y1), (255, 255, 255), 4)
+
+  #  #result = cv2.Canny(result, 100, 1300)
+
+  #  cv2.imshow('steer', result)
+  #  cv2.imshow('xx', fra)
+  #  cv2.imshow('xy', frb)
+  #  cv2.imshow('yy', frc)
+  #  if chr(cv2.waitKey() & 0xff) == 'q':
+  #    break
+
+  #return frxa
+
+  ###########################
+
+  # compute the 2nd deriv gaussian basis kernels
+  g2ha = gauss2d(KERN_SIZE, gtype='2h', direction='a')
+  g2hb = gauss2d(KERN_SIZE, gtype='2h', direction='b')
+  g2hc = gauss2d(KERN_SIZE, gtype='2h', direction='c')
+  g2hd = gauss2d(KERN_SIZE, gtype='2h', direction='d')
+
+  # compute the basis responses
+  fra = cv2.filter2D(fr, cv2.CV_32FC1, g2ha)
+  frb = cv2.filter2D(fr, cv2.CV_32FC1, g2hb)
+  frc = cv2.filter2D(fr, cv2.CV_32FC1, g2hc)
+  frd = cv2.filter2D(fr, cv2.CV_32FC1, g2hd)
+
+  # scale the basis responses to a reasonable range
+  sf = max(
+    abs(fra.min()), abs(fra.max()),
+    abs(frb.min()), abs(frb.max()),
+    abs(frc.min()), abs(frc.max()),
+    abs(frd.min()), abs(frd.max()),
+  ) / 2
+
+  fra /= sf
+  frb /= sf
+  frc /= sf
+  frd /= sf
 
   for th in np.linspace(0, 4*np.pi, num=4*180):
-    print '=========', round(th/np.pi*180)
+    print '============='
 
-    result = (
-      + np.cos(th) * np.cos(th) * g2xx
-      + np.cos(th) * np.sin(th) * g2xy
-      + np.sin(th) * np.sin(th) * g2yy
+    scale = (
+      + abs(1.0 * np.cos(th)**3             )
+      + abs(3.0 * np.cos(th)**2 * np.sin(th))
+      + abs(3.0 * np.sin(th)**2 * np.cos(th))
+      + abs(1.0 * np.sin(th)**3             )
     )
 
-    result = cv2.filter2D(fr, -1, result)
+    result_orig = np.clip(
+      + 1.0 * np.cos(th)**3              * fra
+      - 3.0 * np.cos(th)**2 * np.sin(th) * frb
+      + 3.0 * np.sin(th)**2 * np.cos(th) * frc
+      - 1.0 * np.sin(th)**3              * frb
+    , -1.0, 1.0)
 
+    kern = (
+      + 1.0 * np.cos(th)**3              * g2ha
+      - 3.0 * np.cos(th)**2 * np.sin(th) * g2hb
+      + 3.0 * np.sin(th)**2 * np.cos(th) * g2hc
+      - 1.0 * np.sin(th)**3              * g2hb
+    )
+
+    result_kern = cv2.filter2D(fr, cv2.CV_32FC1, kern)
+    result_kern /= sf
+    result_kern = np.clip(result_kern, -1.0, 1.0)
+
+    #result /= result.max()
+    print 'ORIG %0.2f %0.2f' % (result_orig.min(), result_orig.max())
+    print 'KERN %0.2f %0.2f' % (result_kern.min(), result_kern.max())
+
+    result_orig = (np.absolute(result_orig) * 255).astype(np.uint8)
+    result_kern = (np.absolute(result_kern) * 255).astype(np.uint8)
+
+    #result = cv2.Canny(result, 100, 1100)
+
+    # draw a line
     x0, y0 = 100, 100
     x1, y1 = int(x0 + 100 * np.cos(th)), int(y0 - 100 * np.sin(th))
-    cv2.line(result, (x0, y0), (x1, y1), (255, 255, 255), 4)
+    cv2.line(result_orig, (x0, y0), (x1, y1), (255, 255, 255), 4)
+    cv2.line(result_kern, (x0, y0), (x1, y1), (255, 255, 255), 4)
 
-    cv2.imshow('steer', result)
-    #cv2.imshow('xx', frxx)
-    #cv2.imshow('xy', frxy)
-    #cv2.imshow('yy', fryy)
+    cv2.imshow('steer-orig', result_orig)
+    cv2.imshow('steer-kern', result_kern)
+
+    print '%+02d' % (th / np.pi * 180)
+
     if chr(cv2.waitKey() & 0xff) == 'q':
       break
 
-  return frxx
-
-  #g2ha = gauss2d(KERN_SIZE, gtype='2h', direction='a')
-  #g2hb = gauss2d(KERN_SIZE, gtype='2h', direction='b')
-  #g2hc = gauss2d(KERN_SIZE, gtype='2h', direction='c')
-  #g2hd = gauss2d(KERN_SIZE, gtype='2h', direction='d')
-
-  #fra = cv2.filter2D(fr, -1, g2ha)
-  #frb = cv2.filter2D(fr, -1, g2hb)
-  #frc = cv2.filter2D(fr, -1, g2hc)
-  #frd = cv2.filter2D(fr, -1, g2hd)
-
-  #for th in np.linspace(0, 4*np.pi, num=4*180):
-  #  result = (
-  #    np.cos(th)**3 * g2ha
-  #    - 3.0 * np.cos(th)**2 * np.sin(th) * g2hb
-  #    + 3.0 * np.cos(th) * np.sin(th)**2 * g2hc
-  #    - np.sin(th)**3 * g2hb
-  #  )
-  #  result = cv2.filter2D(fr, -1, result)
-  #  x0, y0 = 100, 100
-  #  x1, y1 = int(x0 + 100 * np.cos(th)), int(y0 - 100 * np.sin(th))
-  #  cv2.line(result, (x0, y0), (x1, y1), (255, 255, 255), 4)
-  #  print '%+02d' % (th / np.pi * 180)
-  #  cv2.imshow('steer', result)
-
-  #  if chr(cv2.waitKey() & 0xff) == 'q':
-  #    break
-
-  return fra
+  return result
 
 def hough(fr, orig):
   lines = cv2.HoughLines(fr,1,np.pi/180,200)
@@ -225,8 +288,8 @@ def detect_lanes(fr):
   pipeline = (
     crop_road,
     #blur,
-    transform_topdown,
     gauss,
+    transform_topdown,
     #edges,
     #hough,
   )
@@ -247,6 +310,7 @@ def main():
   #vid = cv2.VideoCapture('test_track_2.mkv')
   #vid.set(1, 230)
   vid = cv2.VideoCapture('test_track_3.mkv')
+  #vid.set(1, 200)
 
   while True:
     ret, fr = vid.read()
