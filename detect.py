@@ -217,17 +217,24 @@ def detect_lanes(fr):
     #hough,
   )
 
-  cv2.imshow('original', fr)
+  if DEBUG:
+    print '================='
+    cv2.imshow('original', fr)
 
-  print '================='
+  total_time = 0
 
   for img_step in pipeline:
     start = time.time()
     fr = img_step(fr)
     end = time.time()
-    print '-->', int((end-start)*1000), img_step.__name__
+    stage_time = end-start
+    total_time += stage_time
     if DEBUG:
+      print '-->', int(stage_time*1000), img_step.__name__
       cv2.imshow(img_step.__name__, fr)
+
+  if DEBUG:
+    print 'FPS', round(1.0 / total_time, 1)
 
 def main():
   #vid = cv2.VideoCapture('driving_long.mp4')
