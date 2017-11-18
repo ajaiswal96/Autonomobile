@@ -70,6 +70,9 @@ def gauss2d(size, gtype, direction):
 
   return result / np.absolute(result).sum() * 8
 
+def to_grayscale(fr):
+  return cv2.cvtColor(fr, cv2.COLOR_BGR2GRAY)
+
 def transform_topdown(fr):
   h, w = fr.shape
 
@@ -189,6 +192,7 @@ def hough(fr, orig):
 
 def detect_lanes(fr):
   pipeline = (
+    to_grayscale,
     crop_road,
     #blur,
     gauss,
@@ -219,8 +223,6 @@ def main():
     ret, fr = vid.read()
     if not ret:
       break
-
-    fr = cv2.cvtColor(fr, cv2.COLOR_BGR2GRAY)
 
     detect_lanes(fr)
 
