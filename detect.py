@@ -18,7 +18,7 @@ TOPDOWN = (
 )
 
 # nxn - how big the kernels are
-KERN_SIZE = 15
+KERN_SIZE = 10
 
 # nxn - how big the bilateral kernels are
 BLUR_KERN_SIZE = 4
