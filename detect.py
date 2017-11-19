@@ -3,6 +3,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import scipy
 import time
+import gauss
 
 
 DEBUG = True
@@ -65,18 +66,21 @@ def blur(fr):
 def edges(fr):
   return cv2.Canny(fr, 100, 1100)
 
-def gauss(fr):
-  # get the 2nd deriv gaussian basis kernels
-  g2ha = gauss2d(KERN_SIZE, gtype='2h', direction='a')
-  g2hb = gauss2d(KERN_SIZE, gtype='2h', direction='b')
-  g2hc = gauss2d(KERN_SIZE, gtype='2h', direction='c')
-  g2hd = gauss2d(KERN_SIZE, gtype='2h', direction='d')
+def lanes(fr):
+
+  ########## Separable x-y ##########
+
+  # Hilbert transform of gauss2 9-tap FIR x-y separable filters
+  g2hf1 = np.array([gauss.g2h1(tap) for tap in np.linspace(-2.3, 2.3, KERN_SIZE)], dtype=np.float32)
+  g2hf2 = np.array([gauss.g2h2(tap) for tap in np.linspace(-2.3, 2.3, KERN_SIZE)], dtype=np.float32)
+  g2hf3 = np.array([gauss.g2h3(tap) for tap in np.linspace(-2.3, 2.3, KERN_SIZE)], dtype=np.float32)
+  g2hf4 = np.array([gauss.g2h4(tap) for tap in np.linspace(-2.3, 2.3, KERN_SIZE)], dtype=np.float32)
 
   # compute the basis responses
-  fra = cv2.filter2D(fr, cv2.CV_32FC1, g2ha)
-  frb = cv2.filter2D(fr, cv2.CV_32FC1, g2hb)
-  frc = cv2.filter2D(fr, cv2.CV_32FC1, g2hc)
-  frd = cv2.filter2D(fr, cv2.CV_32FC1, g2hd)
+  fra = cv2.sepFilter2D(fr, cv2.CV_32FC1, g2hf1, g2hf2)
+  frb = cv2.sepFilter2D(fr, cv2.CV_32FC1, g2hf4, g2hf3)
+  frc = cv2.sepFilter2D(fr, cv2.CV_32FC1, g2hf3, g2hf4)
+  frd = cv2.sepFilter2D(fr, cv2.CV_32FC1, g2hf2, g2hf1)
 
   # scale the basis responses to a reasonable range
   sf = max(
@@ -84,29 +88,86 @@ def gauss(fr):
     abs(frb.min()), abs(frb.max()),
     abs(frc.min()), abs(frc.max()),
     abs(frd.min()), abs(frd.max()),
-  ) / 2
+  )
 
   fra /= sf
   frb /= sf
   frc /= sf
   frd /= sf
 
+  # show the images
+  print '-'*10
+  print '%+0.4f %+0.4f' % (fra.min(), fra.max())
+  print '%+0.4f %+0.4f' % (frb.min(), frb.max())
+  print '%+0.4f %+0.4f' % (frc.min(), frc.max())
+  print '%+0.4f %+0.4f' % (frd.min(), frd.max())
+
+  cv2.imshow('a', fra)
+  cv2.imshow('b', frb)
+  cv2.imshow('c', frc)
+  cv2.imshow('d', frd)
+
+
+  ########## Actual 2D ##########
+
+  # get the 2nd deriv gaussian basis kernels
+  g2ha = gauss.gauss2d(KERN_SIZE, gtype='2h', direction='a')
+  g2hb = gauss.gauss2d(KERN_SIZE, gtype='2h', direction='b')
+  g2hc = gauss.gauss2d(KERN_SIZE, gtype='2h', direction='c')
+  g2hd = gauss.gauss2d(KERN_SIZE, gtype='2h', direction='d')
+
+  # compute the basis responses
+  fra_kern = cv2.filter2D(fr, cv2.CV_32FC1, g2ha)
+  frb_kern = cv2.filter2D(fr, cv2.CV_32FC1, g2hb)
+  frc_kern = cv2.filter2D(fr, cv2.CV_32FC1, g2hc)
+  frd_kern = cv2.filter2D(fr, cv2.CV_32FC1, g2hd)
+
+  # scale the basis responses to a reasonable range
+  sf = max(
+    abs(fra_kern.min()), abs(fra_kern.max()),
+    abs(frb_kern.min()), abs(frb_kern.max()),
+    abs(frc_kern.min()), abs(frc_kern.max()),
+    abs(frd_kern.min()), abs(frd_kern.max()),
+  )
+
+  fra_kern /= sf
+  frb_kern /= sf
+  frc_kern /= sf
+  frd_kern /= sf
+
+  print '-'*10
+  print '%+0.4f %+0.4f' % (fra_kern.min(), fra_kern.max())
+  print '%+0.4f %+0.4f' % (frb_kern.min(), frb_kern.max())
+  print '%+0.4f %+0.4f' % (frc_kern.min(), frc_kern.max())
+  print '%+0.4f %+0.4f' % (frd_kern.min(), frd_kern.max())
+
+  cv2.imshow('aa', fra_kern)
+  cv2.imshow('bb', frb_kern)
+  cv2.imshow('cc', frc_kern)
+  cv2.imshow('dd', frd_kern)
+
+  while True:
+    if chr(cv2.waitKey() & 0xff) == 'q':
+      break
+
+  return fra
+
   for th in np.linspace(0, 4*np.pi, num=4*180):
     print '============='
 
-    scale = (
-      + abs(1.0 * np.cos(th)**3             )
-      + abs(3.0 * np.cos(th)**2 * np.sin(th))
-      + abs(3.0 * np.sin(th)**2 * np.cos(th))
-      + abs(1.0 * np.sin(th)**3             )
-    )
+    #scale = (
+    #  + abs(1.0 * np.cos(th)**3             )
+    #  + abs(3.0 * np.cos(th)**2 * np.sin(th))
+    #  + abs(3.0 * np.sin(th)**2 * np.cos(th))
+    #  + abs(1.0 * np.sin(th)**3             )
+    #)
 
-    result = np.clip(
+    result = (
       + 1.0 * np.cos(th)**3              * fra
       - 3.0 * np.cos(th)**2 * np.sin(th) * frb
       + 3.0 * np.sin(th)**2 * np.cos(th) * frc
       - 1.0 * np.sin(th)**3              * frb
-    , -1.0, 1.0)
+    )
 
     print 'ORIG %0.2f %0.2f' % (result.min(), result.max())
 
@@ -149,7 +210,7 @@ def detect_lanes(fr):
     crop_road,
     blur,
     to_grayscale,
-    gauss,
+    lanes,
     #transform_topdown,
     #edges,
     #hough,
@@ -181,6 +242,7 @@ def main():
   #vid.set(1, 230)
   vid = cv2.VideoCapture('test_track_3.mkv')
   #vid.set(1, 200)
+  #vid = cv2.VideoCapture('para.jpg')
 
   while True:
     ret, fr = vid.read()
