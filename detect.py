@@ -80,12 +80,7 @@ def lanes(fr):
   frd = cv2.sepFilter2D(fr, cv2.CV_32FC1, g2hf2, g2hf1)
 
   # scale the basis responses to a reasonable range
-  sf = max(
-    abs(fra.min()), abs(fra.max()),
-    abs(frb.min()), abs(frb.max()),
-    abs(frc.min()), abs(frc.max()),
-    abs(frd.min()), abs(frd.max()),
-  )
+  sf = 255.0
 
   fra /= sf
   frb /= sf
