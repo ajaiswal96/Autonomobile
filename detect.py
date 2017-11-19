@@ -19,70 +19,8 @@ TOPDOWN = (
 # nxn - how big the kernels are
 KERN_SIZE = 15
 
-KERN_CACHE = dict()
-
 # nxn - how big the bilateral kernels are
 BLUR_KERN_SIZE = 4
-
-def gauss2d(size, gtype, direction):
-  def g(x, y):
-    return np.exp(-(x**2+y**2))
-
-  def g1a(x, y):
-    return -2.0 * x * g(x, y)
-  def g1b(x, y):
-    return -2.0 * y * g(x, y)
-
-  def g2a(x, y):
-    return 0.9213 * (2.0*x**2-1.0) * g(x, y)
-  def g2b(x, y):
-    return 1.843 * x * y * g(x, y)
-  def g2c(x, y):
-    return 0.9213 * (2.0*y**2-1.0) * g(x, y)
-
-  def g2ha(x, y):
-    return 0.978 * (-2.254*x + x**3) * g(x, y)
-  def g2hb(x, y):
-    return 0.978 * (-0.7515 + x**2) * y * g(x, y)
-  def g2hc(x, y):
-    return 0.978 * (-0.7515 + y**2) * x * g(x, y)
-  def g2hd(x, y):
-    return 0.978 * (-2.254*y + y**3) * g(x, y)
-
-  key = gtype + ':' + direction + str(size)
-  if key in KERN_CACHE:
-    return KERN_CACHE[key]
-
-  gfn = {
-    '1:a': g1a,
-    '1:b': g1b,
-
-    '2:a': g2a,
-    '2:b': g2b,
-    '2:c': g2c,
-
-    '2h:a': g2ha,
-    '2h:b': g2hb,
-    '2h:c': g2hc,
-    '2h:d': g2hd,
-  }[gtype + ':' + direction]
-
-  xx = np.linspace(-2.3, +2.3, num=size)
-  yy = np.linspace(+2.3, -2.3, num=size)
-
-  result = np.zeros((size, size), dtype=np.float32)
-
-  for i in xrange(size):
-    for j in xrange(size):
-      x = xx[j]
-      y = yy[i]
-      result[j][i] = gfn(x, y)
-
-  result = result / np.absolute(result).sum() * 8
-
-  KERN_CACHE[key] = result
-
-  return result
 
 def to_grayscale(fr):
   return cv2.cvtColor(fr, cv2.COLOR_BGR2GRAY)
