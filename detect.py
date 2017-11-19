@@ -95,19 +95,6 @@ def lanes(fr):
   frc /= sf
   frd /= sf
 
-  # show the images
-  print '-'*10
-  print '%+0.4f %+0.4f' % (fra.min(), fra.max())
-  print '%+0.4f %+0.4f' % (frb.min(), frb.max())
-  print '%+0.4f %+0.4f' % (frc.min(), frc.max())
-  print '%+0.4f %+0.4f' % (frd.min(), frd.max())
-
-  cv2.imshow('a', fra)
-  cv2.imshow('b', frb)
-  cv2.imshow('c', frc)
-  cv2.imshow('d', frd)
-
-
   ########## Actual 2D ##########
 
   # get the 2nd deriv gaussian basis kernels
@@ -135,33 +122,8 @@ def lanes(fr):
   frc_kern /= sf
   frd_kern /= sf
 
-  print '-'*10
-  print '%+0.4f %+0.4f' % (fra_kern.min(), fra_kern.max())
-  print '%+0.4f %+0.4f' % (frb_kern.min(), frb_kern.max())
-  print '%+0.4f %+0.4f' % (frc_kern.min(), frc_kern.max())
-  print '%+0.4f %+0.4f' % (frd_kern.min(), frd_kern.max())
-
-  cv2.imshow('aa', fra_kern)
-  cv2.imshow('bb', frb_kern)
-  cv2.imshow('cc', frc_kern)
-  cv2.imshow('dd', frd_kern)
-
-  while True:
-    if chr(cv2.waitKey() & 0xff) == 'q':
-      break
-
-  return fra
-
   for th in np.linspace(0, 4*np.pi, num=4*180):
     print '============='
-
-    #scale = (
-    #  + abs(1.0 * np.cos(th)**3             )
-    #  + abs(3.0 * np.cos(th)**2 * np.sin(th))
-    #  + abs(3.0 * np.sin(th)**2 * np.cos(th))
-    #  + abs(1.0 * np.sin(th)**3             )
-    #)
-
     result = (
       + 1.0 * np.cos(th)**3              * fra
       - 3.0 * np.cos(th)**2 * np.sin(th) * frb
@@ -171,9 +133,9 @@ def lanes(fr):
 
     print 'ORIG %0.2f %0.2f' % (result.min(), result.max())
 
-    result = (np.absolute(result) * 255).astype(np.uint8)
-
-    #result = cv2.Canny(result, 100, 1100)
+    result = np.absolute(result)
+    result = np.clip(result, 0, 1)
+    result = (result*255).astype(np.uint8)
 
     # draw a line
     x0, y0 = 100, 100
