@@ -67,9 +67,6 @@ def edges(fr):
   return cv2.Canny(fr, 100, 1100)
 
 def lanes(fr):
-
-  ########## Separable x-y ##########
-
   # Hilbert transform of gauss2 9-tap FIR x-y separable filters
   g2hf1 = np.array([gauss.g2h1(tap) for tap in np.linspace(-2.3, 2.3, KERN_SIZE)], dtype=np.float32)
   g2hf2 = np.array([gauss.g2h2(tap) for tap in np.linspace(-2.3, 2.3, KERN_SIZE)], dtype=np.float32)
@@ -94,33 +91,6 @@ def lanes(fr):
   frb /= sf
   frc /= sf
   frd /= sf
-
-  ########## Actual 2D ##########
-
-  # get the 2nd deriv gaussian basis kernels
-  g2ha = gauss.gauss2d(KERN_SIZE, gtype='2h', direction='a')
-  g2hb = gauss.gauss2d(KERN_SIZE, gtype='2h', direction='b')
-  g2hc = gauss.gauss2d(KERN_SIZE, gtype='2h', direction='c')
-  g2hd = gauss.gauss2d(KERN_SIZE, gtype='2h', direction='d')
-
-  # compute the basis responses
-  fra_kern = cv2.filter2D(fr, cv2.CV_32FC1, g2ha)
-  frb_kern = cv2.filter2D(fr, cv2.CV_32FC1, g2hb)
-  frc_kern = cv2.filter2D(fr, cv2.CV_32FC1, g2hc)
-  frd_kern = cv2.filter2D(fr, cv2.CV_32FC1, g2hd)
-
-  # scale the basis responses to a reasonable range
-  sf = max(
-    abs(fra_kern.min()), abs(fra_kern.max()),
-    abs(frb_kern.min()), abs(frb_kern.max()),
-    abs(frc_kern.min()), abs(frc_kern.max()),
-    abs(frd_kern.min()), abs(frd_kern.max()),
-  )
-
-  fra_kern /= sf
-  frb_kern /= sf
-  frc_kern /= sf
-  frd_kern /= sf
 
   for th in np.linspace(0, 4*np.pi, num=4*180):
     print '============='
