@@ -6,7 +6,7 @@ import time
 import gauss
 
 
-DEBUG = False
+DEBUG = True
 VERBOSE = True
 
 # How far down the horizon is
@@ -29,6 +29,9 @@ LANE_COLOR_RANGE = (
   ( 90,  70,  50),
   (130, 200, 200)
 )
+
+# number of samples in the steerable filter sample
+STEERABLE_SAMPLES = 50
 
 WIDTH = 640
 HEIGHT = 480
@@ -94,17 +97,20 @@ def resize(fr):
   return cv2.resize(fr, (WIDTH, HEIGHT))
 
 def lanes(fr):
-  # Hilbert transform of gauss2 9-tap FIR x-y separable filters
-  g2hf1 = np.array([gauss.g2h1(tap) for tap in np.linspace(-2.3, 2.3, KERN_SIZE)], dtype=np.float32)
-  g2hf2 = np.array([gauss.g2h2(tap) for tap in np.linspace(-2.3, 2.3, KERN_SIZE)], dtype=np.float32)
-  g2hf3 = np.array([gauss.g2h3(tap) for tap in np.linspace(-2.3, 2.3, KERN_SIZE)], dtype=np.float32)
-  g2hf4 = np.array([gauss.g2h4(tap) for tap in np.linspace(-2.3, 2.3, KERN_SIZE)], dtype=np.float32)
+  if not hasattr(lanes, 'g2hf'):
+    # Hilbert transform of gauss2 9-tap FIR x-y separable filters
+    lanes.g2hf = (
+      np.array([gauss.g2h1(tap) for tap in np.linspace(-2.3, 2.3, KERN_SIZE)], dtype=np.float32),
+      np.array([gauss.g2h2(tap) for tap in np.linspace(-2.3, 2.3, KERN_SIZE)], dtype=np.float32),
+      np.array([gauss.g2h3(tap) for tap in np.linspace(-2.3, 2.3, KERN_SIZE)], dtype=np.float32),
+      np.array([gauss.g2h4(tap) for tap in np.linspace(-2.3, 2.3, KERN_SIZE)], dtype=np.float32),
+    )
 
   # compute the basis responses
-  fra = cv2.sepFilter2D(fr, cv2.CV_32FC1, g2hf1, g2hf2)
-  frb = cv2.sepFilter2D(fr, cv2.CV_32FC1, g2hf4, g2hf3)
-  frc = cv2.sepFilter2D(fr, cv2.CV_32FC1, g2hf3, g2hf4)
-  frd = cv2.sepFilter2D(fr, cv2.CV_32FC1, g2hf2, g2hf1)
+  fra = cv2.sepFilter2D(fr, cv2.CV_32FC1, lanes.g2hf[0], lanes.g2hf[1])
+  frb = cv2.sepFilter2D(fr, cv2.CV_32FC1, lanes.g2hf[3], lanes.g2hf[2])
+  frc = cv2.sepFilter2D(fr, cv2.CV_32FC1, lanes.g2hf[2], lanes.g2hf[3])
+  frd = cv2.sepFilter2D(fr, cv2.CV_32FC1, lanes.g2hf[1], lanes.g2hf[0])
 
   # scale the basis responses to a reasonable range
   sf = 255.0
@@ -115,17 +121,19 @@ def lanes(fr):
   frd /= sf
 
   # mask out the transform edges
-  _, w = fr.shape
-  shift = KERN_SIZE
-  mask = np.ones(fr.shape, dtype=np.float32)
-  mask[:, 0:shift] = 0.0
-  mask[:, w-shift:w] = 0.0
-  mask = transform_topdown(mask)
+  if not hasattr(lanes, 'mask'):
+    _, w = fr.shape
+    shift = KERN_SIZE
+    mask = np.ones(fr.shape, dtype=np.float32)
+    mask[:, 0:shift] = 0.0
+    mask[:, w-shift:w] = 0.0
+    mask = transform_topdown(mask)
+    lanes.mask = mask
 
-  fra *= mask
-  frb *= mask
-  frc *= mask
-  frd *= mask
+  fra *= lanes.mask
+  frb *= lanes.mask
+  frc *= lanes.mask
+  frd *= lanes.mask
 
   if DEBUG:
     cv2.imshow('fra', np.absolute(fra))
@@ -142,7 +150,7 @@ def lanes(fr):
   rc = abs(frc.sum())
   rd = abs(frd.sum())
 
-  angles = np.linspace(-np.pi/2, np.pi/2, num=50)
+  angles = np.linspace(-np.pi/2, np.pi/2, num=STEERABLE_SAMPLES+1, dtype=np.float32)[:-1]
   responses = (
     + 1.0 * np.cos(angles)**3                  * ra
     - 3.0 * np.cos(angles)**2 * np.sin(angles) * rb
