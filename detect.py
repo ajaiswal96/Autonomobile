@@ -9,16 +9,16 @@ import curses
 import operator
 from collections import deque
 
-DEBUG = True
+DEBUG = False
 VERBOSE = True
 
 # How far down the horizon is
-HORIZON = 0.4
+HORIZON = 0.6
 
 # Matrix to transform the image into a topdown view
 TOPDOWN = (
   +0.00, +1.00,   # top left, top right
-  -1.18, +2.18,   # bottom left, bottom right
+  -2.10, +3.10,   # bottom left, bottom right
 )
 
 # nxn - how big the kernels are
@@ -29,15 +29,17 @@ BLUR_KERN_SIZE = 4
 
 # color of lanes
 LANE_COLOR_RANGE = (
-  ( 90,  70,  50),
-  (130, 200, 200)
+  #( 35,  20,  50),
+  #(130, 255, 255)
+  ( 35,  40,  40),
+  (130, 255, 255)
 )
 
 # number of samples in the steerable filter sample
 STEERABLE_SAMPLES = 50
 
 # part of frame to look for lateral centeredness
-LATERAL_CUTOFF = 0.85
+LATERAL_CUTOFF = 0.75
 
 WIDTH = 320
 HEIGHT = 240
@@ -156,7 +158,7 @@ def lanes(fr):
   rc = abs(frc.sum())
   rd = abs(frd.sum())
 
-  angles = np.linspace(-np.pi/2, np.pi/2, num=STEERABLE_SAMPLES+1, dtype=np.float32)[:-1]
+  angles = np.linspace(-np.pi/2, np.pi/2, num=STEERABLE_SAMPLES+1).astype(np.float32)[:-1]
   responses = (
     + 1.0 * np.cos(angles)**3                  * ra
     - 3.0 * np.cos(angles)**2 * np.sin(angles) * rb
@@ -190,10 +192,11 @@ def lanes(fr):
   return result
 
 def hough(fr):
+  h, w = fr.shape
   # get the lines
   lines = cv2.HoughLinesP(fr, rho=1,
     theta=np.pi/180, threshold=50,
-    maxLineGap=HEIGHT/20, minLineLength=HEIGHT/10)
+    maxLineGap=h/10, minLineLength=h/5)
   if lines is None: lines = [[]]
 
   # organize and normalize the lines
@@ -201,7 +204,6 @@ def hough(fr):
   lines_sorted = []
   for line in lines:
     for x0, y0, x1, y1 in line:
-      x0, y0, x1, y1 = line[0]
       ((y0, x0), (y1, x1)) = sorted(((y0, x0), (y1, x1)))
       lines_sorted.append((
         (float(x0)/w, float(y0)/h),
@@ -215,7 +217,21 @@ def hough(fr):
   # cluster the lines and compute left and right sides
   ll, rr, th = cluster_lines_lr(lines_sorted, fr)
 
-  hough.stage_debug_text = str((ll, rr, th))
+  if ll is None or np.isnan(ll) or np.isnan(rr):
+    hough.stage_debug_text = '.'*100
+  else:
+    hough.stage_debug_text = (
+       int(round(ll*100))*'.' + '|'
+     + int(round((rr-ll)*100))*'.' + '|'
+     + int(round((1.0-rr)*100))*'.'
+    )
+
+  hough.stage_debug_text += '\n'
+
+  if th is None:
+    hough.stage_debug_text += '-- degrees'
+  else:
+    hough.stage_debug_text += '%0.1f degrees' % th
 
   if ll is not None: show_points(raw_lines, zip([ll], [1.0]), 5)
   if rr is not None: show_points(raw_lines, zip([rr], [1.0]), 5)
@@ -239,11 +255,12 @@ def invert_dict(d):
 # x_ll, x_rr are normalized to between 0 and 1
 # yaw is an angle, where 0 is straight, positive is right, negative is left
 def cluster_lines_lr(lines, fr):
-  dbg = np.zeros(fr.shape, dtype=np.uint8)
+  if DEBUG:
+    dbg = np.zeros(fr.shape, dtype=np.uint8)
 
   if not lines: return None, None, None
 
-  SAMPLE_DIST = 0.02
+  SAMPLE_DIST = 0.05
 
   # interpolate the lines
   id2line = []
@@ -260,7 +277,7 @@ def cluster_lines_lr(lines, fr):
     id2line.extend([i]*samples)
 
   # cluster them
-  db = DBSCAN(eps=0.2, min_samples=5).fit(pts).labels_
+  db = [int(i) for i in DBSCAN(eps=0.1, min_samples=5).fit(np.array(pts)).labels_]
 
   # map lbl -> [pt_ids]
   db_inv = invert_dict(dict(zip(xrange(len(db)), db)))
@@ -318,18 +335,29 @@ def cluster_lines_lr(lines, fr):
   ll_linfit = None
   rr_linfit = None
 
-  if ll_pts: ll_linfit = np.poly1d(np.polyfit(zip(*ll_pts)[0], zip(*ll_pts)[1], 1))
-  if rr_pts: rr_linfit = np.poly1d(np.polyfit(zip(*rr_pts)[0], zip(*rr_pts)[1], 1))
+  if DEBUG:
+    if ll_pts: show_points(dbg, ll_pts, 1)
+    if rr_pts: show_points(dbg, rr_pts, 1)
+
+  if ll_pts: ll_linfit = np.poly1d(np.polyfit(zip(*ll_pts)[1], zip(*ll_pts)[0], 1))
+  if rr_pts: rr_linfit = np.poly1d(np.polyfit(zip(*rr_pts)[1], zip(*rr_pts)[0], 1))
+
+  if DEBUG:
+    if ll_linfit: show_lines(dbg, [((ll_linfit(0.0), 0.0), (ll_linfit(1.0), 1.0))], 1)
+    if rr_linfit: show_lines(dbg, [((rr_linfit(0.0), 0.0), (rr_linfit(1.0), 1.0))], 1)
 
   # compute the angle
   ll_theta = None
   rr_theta = None
-  if ll_linfit: ll_theta = np.arctan(1/-ll_linfit[1]) if ll_linfit[1] != 0 else float('inf')
-  if rr_linfit: rr_theta = np.arctan(1/-rr_linfit[1]) if rr_linfit[1] != 0 else float('inf')
+  if ll_linfit: ll_theta = np.arctan(-ll_linfit[1]) if ll_linfit[1] != 0 else float('inf')
+  if rr_linfit: rr_theta = np.arctan(-rr_linfit[1]) if rr_linfit[1] != 0 else float('inf')
 
   theta = None
   all_thetas = [t for t in (ll_theta, rr_theta) if t is not None]
   if all_thetas: theta = np.degrees(np.mean(all_thetas))
+
+  if DEBUG:
+    cv2.imshow('cluster-dbg', dbg)
 
   return ll, rr, theta
 
@@ -338,9 +366,12 @@ def show_points(fr, pts, th):
   for x, y in pts:
     x *= w
     y *= h
-    x = int(round(x))
-    y = int(round(y))
-    cv2.circle(fr, (x, y), th, (255, 255, 255), thickness=-1)
+    try:
+      x = int(round(x))
+      y = int(round(y))
+      cv2.circle(fr, (x, y), th, (255, 255, 255), thickness=-1)
+    except:
+      pass
 
 def show_lines(fr, lines, th):
   h, w = fr.shape
@@ -349,11 +380,14 @@ def show_lines(fr, lines, th):
     y0 *= h
     x1 *= w
     y1 *= h
-    x0 = int(round(x0))
-    y0 = int(round(y0))
-    x1 = int(round(x1))
-    y1 = int(round(y1))
-    cv2.line(fr, (x0, y0), (x1, y1), (255, 255, 255), thickness=th)
+    try:
+      x0 = int(round(x0))
+      y0 = int(round(y0))
+      x1 = int(round(x1))
+      y1 = int(round(y1))
+      cv2.line(fr, (x0, y0), (x1, y1), (255, 255, 255), thickness=th)
+    except:
+      pass
 
 def detect_lanes(fr, screen=None):
   pipeline = (
@@ -392,8 +426,8 @@ def detect_lanes(fr, screen=None):
     if img_step.__name__ == 'crop_road':
       inter = fr.copy()
 
-  if DEBUG:
-    cv2.imshow('final', cv2.bitwise_or(inter,np.stack([fr]*3, axis=2)))
+  #if DEBUG:
+  #  cv2.imshow('final', cv2.bitwise_or(inter,np.stack([fr]*3, axis=2)))
 
   status_str.append('FPS %.1f' % (1.0/total_time))
 
@@ -410,9 +444,10 @@ def main(screen):
   #vid.set(1, 40000)
   #vid = cv2.VideoCapture('test_track_2.mkv')
   #vid.set(1, 230)
-  vid = cv2.VideoCapture('test_track_3.mkv')
+  #vid = cv2.VideoCapture('test_track_3.mkv')
   #vid.set(1, 200)
   #vid = cv2.VideoCapture('para2.jpg')
+  vid = cv2.VideoCapture(0)
 
   while True:
     ret, fr = vid.read()
@@ -421,7 +456,7 @@ def main(screen):
 
     detect_lanes(fr, screen)
 
-    if DEBUG and chr(cv2.waitKey() & 0xff) == 'q':
+    if DEBUG and chr(cv2.waitKey(1) & 0xff) == 'q':
       break
 
 if __name__ == '__main__':
