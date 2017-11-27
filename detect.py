@@ -1,10 +1,13 @@
 import cv2
 import numpy as np
 import matplotlib.pyplot as plt
-import scipy
+from scipy import stats
 import time
 import gauss
-
+from sklearn.cluster import DBSCAN
+import curses
+import operator
+from collections import deque
 
 DEBUG = True
 VERBOSE = True
@@ -15,7 +18,7 @@ HORIZON = 0.4
 # Matrix to transform the image into a topdown view
 TOPDOWN = (
   +0.00, +1.00,   # top left, top right
-  -1.00, +2.00,   # bottom left, bottom right
+  -1.18, +2.18,   # bottom left, bottom right
 )
 
 # nxn - how big the kernels are
@@ -33,8 +36,11 @@ LANE_COLOR_RANGE = (
 # number of samples in the steerable filter sample
 STEERABLE_SAMPLES = 50
 
-WIDTH = 640
-HEIGHT = 480
+# part of frame to look for lateral centeredness
+LATERAL_CUTOFF = 0.85
+
+WIDTH = 320
+HEIGHT = 240
 
 def filter_lanecolor(fr):
   hsv = cv2.cvtColor(fr, cv2.COLOR_BGR2HSV)
@@ -91,7 +97,7 @@ def blur(fr):
   return fr
 
 def edges(fr):
-  return cv2.Canny(fr, 50, 400)
+  return cv2.Canny(fr, 50, 500)
 
 def resize(fr):
   return cv2.resize(fr, (WIDTH, HEIGHT))
@@ -135,11 +141,11 @@ def lanes(fr):
   frc *= lanes.mask
   frd *= lanes.mask
 
-  if DEBUG:
-    cv2.imshow('fra', np.absolute(fra))
-    cv2.imshow('frb', np.absolute(frb))
-    cv2.imshow('frc', np.absolute(frc))
-    cv2.imshow('frd', np.absolute(frd))
+  #if DEBUG:
+  #  cv2.imshow('fra', np.absolute(fra))
+  #  cv2.imshow('frb', np.absolute(frb))
+  #  cv2.imshow('frc', np.absolute(frc))
+  #  cv2.imshow('frd', np.absolute(frd))
 
   # find the angle with the highest response
   max_sum = -1
@@ -184,45 +190,177 @@ def lanes(fr):
   return result
 
 def hough(fr):
+  # get the lines
   lines = cv2.HoughLinesP(fr, rho=1,
     theta=np.pi/180, threshold=50,
-    maxLineGap=30, minLineLength=80)
+    maxLineGap=HEIGHT/20, minLineLength=HEIGHT/10)
   if lines is None: lines = [[]]
 
-  result = np.zeros(fr.shape, dtype=np.uint8)
-
-  x0a, y0a, x1a, y1a = [], [], [], []
+  # organize and normalize the lines
+  h, w = fr.shape
+  lines_sorted = []
   for line in lines:
-    if len(line) > 0:
+    for x0, y0, x1, y1 in line:
       x0, y0, x1, y1 = line[0]
       ((y0, x0), (y1, x1)) = sorted(((y0, x0), (y1, x1)))
-      x0a.append(x0)
-      y0a.append(y0)
-      x1a.append(x1)
-      y1a.append(y1)
-      cv2.line(result, (x0, y0), (x1, y1), (255, 255, 255), 1)
-  
-  for x, y in zip(x0a, y0a):
-    cv2.circle(result, (x, y), 2, (256, 256, 256), thickness=-1)
-  for x, y in zip(x1a, y1a):
-    cv2.circle(result, (x, y), 2, (256, 256, 256), thickness=-1)
+      lines_sorted.append((
+        (float(x0)/w, float(y0)/h),
+        (float(x1)/w, float(y1)/h),
+      ))
 
-  if len(x0a) > 0:
-    x0 = int(round(float(sum(x0a)) / len(x0a)))
-    y0 = int(round(float(sum(y0a)) / len(y0a)))
-    x1 = int(round(float(sum(x1a)) / len(x1a)))
-    y1 = int(round(float(sum(y1a)) / len(y1a)))
+  raw_lines = np.zeros(fr.shape, dtype=np.uint8)
 
-    cv2.line(result, (x0, y0), (x1, y1), (255, 255, 255), 1)
+  show_lines(raw_lines, lines_sorted, 1)
 
-  return result
+  # cluster the lines and compute left and right sides
+  ll, rr, th = cluster_lines_lr(lines_sorted, fr)
 
-def detect_lanes(fr):
+  hough.stage_debug_text = str((ll, rr, th))
+
+  if ll is not None: show_points(raw_lines, zip([ll], [1.0]), 5)
+  if rr is not None: show_points(raw_lines, zip([rr], [1.0]), 5)
+  if th is not None:
+    x0, y0 = 0.5, 1.0
+    x1, y1 = x0 + np.cos(np.radians(th-90))*50, y0 + np.sin(np.radians(th-90))*50
+    show_lines(raw_lines, [((x0, y0), (x1, y1))], 3)
+
+  return raw_lines
+
+def invert_dict(d):
+  inv = dict()
+  for k, v in d.iteritems():
+    if v not in inv:
+      inv[v] = []
+    inv[v].append(k)
+  return inv
+
+# get lane parameters
+# returns (x_ll, x_rr, yaw)
+# x_ll, x_rr are normalized to between 0 and 1
+# yaw is an angle, where 0 is straight, positive is right, negative is left
+def cluster_lines_lr(lines, fr):
+  dbg = np.zeros(fr.shape, dtype=np.uint8)
+
+  if not lines: return None, None, None
+
+  SAMPLE_DIST = 0.02
+
+  # interpolate the lines
+  id2line = []
+  pts = []
+  for i, ((x0, y0), (x1, y1)) in enumerate(lines):
+    dy = y1-y0
+    dx = x1-x0
+    seg_len = (dx**2+dy**2)**0.5
+    samples = int(round(seg_len / SAMPLE_DIST))
+    pts.extend(zip(
+      np.linspace(x0, x1, samples),
+      np.linspace(y0, y1, samples)
+    ))
+    id2line.extend([i]*samples)
+
+  # cluster them
+  db = DBSCAN(eps=0.2, min_samples=5).fit(pts).labels_
+
+  # map lbl -> [pt_ids]
+  db_inv = invert_dict(dict(zip(xrange(len(db)), db)))
+
+  # filter out y>LATERAL_CUTOFF
+  db_inv_lower = dict()
+  for lbl, pt_ids in db_inv.iteritems():
+    lower = [i for i in pt_ids if pts[i][1] > LATERAL_CUTOFF]
+    if lower: db_inv_lower[lbl] = lower
+
+  # compute the average x locations
+  db_x_avg = dict()
+  for lbl, pt_ids in db_inv_lower.iteritems():
+    x_avg = np.mean([pts[i][0] for i in pt_ids])
+    db_x_avg[lbl] = x_avg
+
+  # sort them
+  xavgs = sorted(db_x_avg.iteritems(), key=operator.itemgetter(1))
+
+  # choose the middle two
+  HISTORY=10
+  if not hasattr(cluster_lines_lr, 'lls'):
+    cluster_lines_lr.lls = deque()
+    cluster_lines_lr.rrs = deque()
+ 
+  lbl_ll, ll = None, None
+  lbl_rr, rr = None, None
+
+  if len(xavgs) >= 2:
+    lbl_ll, ll = xavgs[len(xavgs)/2-1]
+    lbl_rr, rr = xavgs[len(xavgs)/2]
+    cluster_lines_lr.lls.append(ll)
+    cluster_lines_lr.rrs.append(rr)
+    if len(cluster_lines_lr.lls) > HISTORY:
+      cluster_lines_lr.lls.popleft()
+      cluster_lines_lr.rrs.popleft()
+  elif len(xavgs) == 1:
+    lbl_pp, pp = xavgs[0]
+    dll = abs(pp - np.mean(cluster_lines_lr.lls))
+    drr = abs(pp - np.mean(cluster_lines_lr.rrs))
+    width = abs(np.mean(cluster_lines_lr.lls) - np.mean(cluster_lines_lr.rrs))
+    if dll < drr:
+      lbl_ll, ll = lbl_pp, pp
+      lbl_rr, rr = None, pp + width
+    else:
+      lbl_ll, ll = None, pp - width
+      lbl_rr, rr = lbl_pp, pp
+  else:
+    return None, None, None
+
+  # do a linear fit on each cluster's points
+  ll_pts = [pts[i] for i in (db_inv[lbl_ll] if lbl_ll is not None else [])]
+  rr_pts = [pts[i] for i in (db_inv[lbl_rr] if lbl_rr is not None else [])]
+
+  ll_linfit = None
+  rr_linfit = None
+
+  if ll_pts: ll_linfit = np.poly1d(np.polyfit(zip(*ll_pts)[0], zip(*ll_pts)[1], 1))
+  if rr_pts: rr_linfit = np.poly1d(np.polyfit(zip(*rr_pts)[0], zip(*rr_pts)[1], 1))
+
+  # compute the angle
+  ll_theta = None
+  rr_theta = None
+  if ll_linfit: ll_theta = np.arctan(1/-ll_linfit[1]) if ll_linfit[1] != 0 else float('inf')
+  if rr_linfit: rr_theta = np.arctan(1/-rr_linfit[1]) if rr_linfit[1] != 0 else float('inf')
+
+  theta = None
+  all_thetas = [t for t in (ll_theta, rr_theta) if t is not None]
+  if all_thetas: theta = np.degrees(np.mean(all_thetas))
+
+  return ll, rr, theta
+
+def show_points(fr, pts, th):
+  h, w = fr.shape
+  for x, y in pts:
+    x *= w
+    y *= h
+    x = int(round(x))
+    y = int(round(y))
+    cv2.circle(fr, (x, y), th, (255, 255, 255), thickness=-1)
+
+def show_lines(fr, lines, th):
+  h, w = fr.shape
+  for ((x0, y0), (x1, y1)) in lines:
+    x0 *= w
+    y0 *= h
+    x1 *= w
+    y1 *= h
+    x0 = int(round(x0))
+    y0 = int(round(y0))
+    x1 = int(round(x1))
+    y1 = int(round(y1))
+    cv2.line(fr, (x0, y0), (x1, y1), (255, 255, 255), thickness=th)
+
+def detect_lanes(fr, screen=None):
   pipeline = (
     resize,
     crop_road,
     #blur,
-    #filter_lanecolor,
+    filter_lanecolor,
     to_grayscale,
     transform_topdown,
     lanes,
@@ -231,8 +369,8 @@ def detect_lanes(fr):
     untransform_topdown,
   )
 
-  if VERBOSE:
-    print '================='
+  status_str = []
+
   if DEBUG:
     cv2.imshow('original', fr)
 
@@ -246,8 +384,9 @@ def detect_lanes(fr):
     end = time.time()
     stage_time = end-start
     total_time += stage_time
-    if VERBOSE:
-      print '-->', int(stage_time*1000), img_step.__name__
+    status_str.append('--> %d %s' % (int(stage_time*1000), img_step.__name__))
+    if hasattr(img_step, 'stage_debug_text'):
+      status_str.append(img_step.stage_debug_text)
     if DEBUG:
       cv2.imshow(img_step.__name__, fr)
     if img_step.__name__ == 'crop_road':
@@ -256,10 +395,17 @@ def detect_lanes(fr):
   if DEBUG:
     cv2.imshow('final', cv2.bitwise_or(inter,np.stack([fr]*3, axis=2)))
 
-  if VERBOSE:
-    print 'FPS', round(1.0 / total_time, 1)
+  status_str.append('FPS %.1f' % (1.0/total_time))
 
-def main():
+  if VERBOSE:
+    if not hasattr(detect_lanes, 'frnum'):
+      detect_lanes.frnum = 0
+    screen.addstr(0, 0, 'Frame %d' % detect_lanes.frnum)
+    screen.addstr(1, 0, '\n'.join(status_str)+'\n')
+    screen.refresh()
+    detect_lanes.frnum += 1
+
+def main(screen):
   #vid = cv2.VideoCapture('driving_long.mp4')
   #vid.set(1, 40000)
   #vid = cv2.VideoCapture('test_track_2.mkv')
@@ -273,10 +419,10 @@ def main():
     if not ret:
       break
 
-    detect_lanes(fr)
+    detect_lanes(fr, screen)
 
     if DEBUG and chr(cv2.waitKey() & 0xff) == 'q':
       break
 
 if __name__ == '__main__':
-  main()
+  curses.wrapper(main)
