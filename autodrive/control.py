@@ -1,7 +1,6 @@
 import detect
 import cardriver
 import cv2
-from PID import PID
 import numpy as np
 from collections import deque
 import time
@@ -22,10 +21,10 @@ def clamp(val, lower, upper):
   if val > upper: return upper
   return val
 
-def get_err(cam):
+def get_err(cam, rec):
   ret, fr = cam.read()
   if not ret: return None
-  ll, rr, th = detect.detect_lanes(fr)
+  ll, rr, th = detect.detect_lanes(fr, recorder=rec)
   if ll is None or rr is None or th is None or np.isnan(ll): return None
   return to_error(ll, rr, th)
 
@@ -36,15 +35,18 @@ def main():
   assert ret
   print 'camera loaded'
 
+  fourcc = cv2.cv.CV_FOURCC(*'XVID')
+  recorder = cv2.VideoWriter('output.avi',fourcc, 20.0, (640,480))
+
   cardriver.reset()
 
   raw_input()
 
-  cardriver.set_speed(4)
+  cardriver.set_speed(3)
 
   try:
     while True:
-      err = get_err(cam)
+      err = get_err(cam, recorder)
       if err is None: continue
       steer = int(round(err*80))
       steer = clamp(steer, -10, 10)

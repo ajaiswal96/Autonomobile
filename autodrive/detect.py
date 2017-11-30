@@ -14,6 +14,7 @@ from curses_mock import CursesMock
 
 DEBUG = False
 VERBOSE = False
+RECORDER = None
 
 # How far down the horizon is
 HORIZON = 0.7
@@ -281,16 +282,21 @@ def hough(fr):
   hough.prev_rr = rr
 
   # show the debug frame
+  raw_lines = np.zeros(fr.shape, dtype=np.uint8)
+  show_lines(raw_lines, lines_sorted, 1)
+  show_points(raw_lines, [(ll, 0.95), (rr, 0.95)], 5)
+  if th is not None:
+    p0 = (0.5, 1.0)
+    p1 = (0.5+0.5*np.sin(np.radians(th)),
+          1.0-0.5*np.cos(np.radians(th)))
+    show_lines(raw_lines, [(p0, p1)], 5)
   if DEBUG:
-    raw_lines = np.zeros(fr.shape, dtype=np.uint8)
-    show_lines(raw_lines, lines_sorted, 1)
-    show_points(raw_lines, [(ll, 0.95), (rr, 0.95)], 5)
-    if th is not None:
-      p0 = (0.5, 1.0)
-      p1 = (0.5+0.5*np.sin(np.radians(th)),
-            1.0-0.5*np.cos(np.radians(th)))
-      show_lines(raw_lines, [(p0, p1)], 5)
     cv2.imshow('raw_lines', raw_lines)
+  if RECORDER is not None:
+    out = cv2.resize(raw_lines, (640, 480))
+    out = cv2.cvtColor(out, cv2.COLOR_GRAY2BGR)
+    RECORDER.write(out)
+
 
   return ll, rr, th
 
@@ -497,7 +503,7 @@ def show_lines(fr, lines, th):
 def gaussian_blur(fr):
   return cv2.GaussianBlur(fr, (25, 25), 0)
 
-def detect_lanes(fr, screen=None):
+def detect_lanes(fr, screen=None, recorder=None):
   pipeline = (
     resize,
     crop_road,
@@ -510,6 +516,9 @@ def detect_lanes(fr, screen=None):
     hough,
     #untransform_topdown,
   )
+
+  global RECORDER
+  RECORDER = recorder
 
   status_str = []
 
