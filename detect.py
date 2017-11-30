@@ -2,37 +2,42 @@ import cv2
 import numpy as np
 import matplotlib.pyplot as plt
 from scipy import stats
+from scipy import signal
 import time
 import gauss
 from sklearn.cluster import DBSCAN
+from sklearn.linear_model import RANSACRegressor
 import curses
 import operator
 from collections import deque
+from curses_mock import CursesMock
 
 DEBUG = False
-VERBOSE = True
+VERBOSE = False
 
 # How far down the horizon is
-HORIZON = 0.6
+HORIZON = 0.7
 
 # Matrix to transform the image into a topdown view
 TOPDOWN = (
   +0.00, +1.00,   # top left, top right
-  -2.10, +3.10,   # bottom left, bottom right
+  -1.50, +2.50,   # bottom left, bottom right
 )
 
 # nxn - how big the kernels are
 KERN_SIZE = 10
 
-# nxn - how big the bilateral kernels are
-BLUR_KERN_SIZE = 4
+# nxn - how big the blur kernels are
+BLUR_KERN_SIZE = 15
 
 # color of lanes
 LANE_COLOR_RANGE = (
   #( 35,  20,  50),
   #(130, 255, 255)
-  ( 35,  40,  40),
-  (130, 255, 255)
+  #( 50,  80,  80),
+  #(120, 255, 255)
+  ( 35,  25,  80),
+  (120, 220, 255)
 )
 
 # number of samples in the steerable filter sample
@@ -93,10 +98,9 @@ def crop_road(fr):
   return fr[new_h:, :]
 
 def blur(fr):
-  ITERS = 4
-  for _ in xrange(ITERS):
-    fr = cv2.bilateralFilter(fr, BLUR_KERN_SIZE, 30, 1000)
-  return fr
+  img = cv2.GaussianBlur(fr, (BLUR_KERN_SIZE, BLUR_KERN_SIZE), 0)
+  _, img = cv2.threshold(img, 0, 255, cv2.THRESH_BINARY+cv2.THRESH_OTSU)
+  return img
 
 def edges(fr):
   return cv2.Canny(fr, 50, 500)
@@ -193,10 +197,110 @@ def lanes(fr):
 
 def hough(fr):
   h, w = fr.shape
+
+  # close any holes
+  kern = np.ones((8,8), dtype=np.uint8)
+  fr = cv2.morphologyEx(fr, cv2.MORPH_CLOSE, kern)
+
+  # clean up the image
+  #to_fit = np.argmax(fr, 1)
+  #to_fit = np.zeros((1, w), dtype=np.uint8)
+  #for x in xrange(w):
+  #  y = np.argmax(fr, 1)
+  #  to_fit[x] = y
+
+  # fit a polynomial
+  #ransac = RANSACRegressor()
+
+  #line_x = np.arange(w)
+  #line_y = ransac.predict(line_x)
+  #plt.plot(line_x, line_y)
+  #plt.plot(np.arange(h), to_fit)
+  #plt.show()
+
   # get the lines
   lines = cv2.HoughLinesP(fr, rho=1,
-    theta=np.pi/180, threshold=50,
-    maxLineGap=h/10, minLineLength=h/5)
+    theta=np.pi/180, threshold=40,
+    maxLineGap=h/6, minLineLength=h/6)
+  if lines is None: lines = [[]]
+
+  # organize and normalize the lines
+  h, w = fr.shape
+  lines_sorted = []
+  for line in lines:
+    for x0, y0, x1, y1 in line:
+      ((y0, x0), (y1, x1)) = sorted(((y0, x0), (y1, x1)))
+      lines_sorted.append((
+        (float(x0)/w, float(y0)/h),
+        (float(x1)/w, float(y1)/h),
+      ))
+
+  # get the angle
+  ths = []
+  for (x0, y0), (x1, y1) in lines_sorted:
+    if y1-y0 == 0:
+      if x0-x1 > 0:
+        th = np.pi/2
+      else:
+        th = -np.pi/2
+    else:
+      th = np.arctan(float(x0-x1)/float(y1-y0))
+    ths.append(th)
+  if ths:
+    th = np.degrees(np.mean(ths))
+  else:
+    th = None
+
+  # find left and right by looking near bottom of frame
+  fr_lower_ll = signal.convolve(np.amax(fr[h-10:h, :w/2], 0), signal.hann(w/20))
+  fr_lower_rr = signal.convolve(np.amax(fr[h-10:h, w/2:], 0), signal.hann(w/20))
+  if fr_lower_ll.max() > 200:
+    ll = float(fr_lower_ll.argmax()) / w
+  else:
+    ll = None
+  if fr_lower_rr.max() > 200:
+    rr = float(fr_lower_rr.argmax() + w/2) / w
+  else:
+    rr = None
+
+  if not hasattr(hough, 'prev_ll'):
+    hough.prev_ll = w/4
+    hough.prev_rr = 3*w/4
+
+  prev_w = hough.prev_rr - hough.prev_ll
+
+  if ll is None and rr is None:
+    ll = hough.prev_ll
+    rr = hough.prev_rr
+  if ll is None:
+    ll = rr - prev_w
+  if rr is None:
+    rr = ll + prev_w
+
+  hough.prev_ll = ll
+  hough.prev_rr = rr
+
+  # show the debug frame
+  if DEBUG:
+    raw_lines = np.zeros(fr.shape, dtype=np.uint8)
+    show_lines(raw_lines, lines_sorted, 1)
+    show_points(raw_lines, [(ll, 0.95), (rr, 0.95)], 5)
+    if th is not None:
+      p0 = (0.5, 1.0)
+      p1 = (0.5+0.5*np.sin(np.radians(th)),
+            1.0-0.5*np.cos(np.radians(th)))
+      show_lines(raw_lines, [(p0, p1)], 5)
+    cv2.imshow('raw_lines', raw_lines)
+
+  return ll, rr, th
+
+def hough_old(fr):
+  h, w = fr.shape
+
+  # get the lines
+  lines = cv2.HoughLinesP(fr, rho=1,
+    theta=np.pi/180, threshold=40,
+    maxLineGap=h/10, minLineLength=h/3)
   if lines is None: lines = [[]]
 
   # organize and normalize the lines
@@ -240,7 +344,10 @@ def hough(fr):
     x1, y1 = x0 + np.cos(np.radians(th-90))*50, y0 + np.sin(np.radians(th-90))*50
     show_lines(raw_lines, [((x0, y0), (x1, y1))], 3)
 
-  return raw_lines
+  if DEBUG:
+    cv2.imshow('hough_raw', raw_lines)
+
+  return ll, rr, th
 
 def invert_dict(d):
   inv = dict()
@@ -298,10 +405,12 @@ def cluster_lines_lr(lines, fr):
   xavgs = sorted(db_x_avg.iteritems(), key=operator.itemgetter(1))
 
   # choose the middle two
-  HISTORY=10
+  HISTORY = 1
+  now = time.time()
   if not hasattr(cluster_lines_lr, 'lls'):
     cluster_lines_lr.lls = deque()
     cluster_lines_lr.rrs = deque()
+    cluster_lines_lr.times = deque()
  
   lbl_ll, ll = None, None
   lbl_rr, rr = None, None
@@ -311,9 +420,11 @@ def cluster_lines_lr(lines, fr):
     lbl_rr, rr = xavgs[len(xavgs)/2]
     cluster_lines_lr.lls.append(ll)
     cluster_lines_lr.rrs.append(rr)
-    if len(cluster_lines_lr.lls) > HISTORY:
+    cluster_lines_lr.times.append(now)
+    while now - cluster_lines_lr.times[0] > HISTORY:
       cluster_lines_lr.lls.popleft()
       cluster_lines_lr.rrs.popleft()
+      cluster_lines_lr.times.popleft()
   elif len(xavgs) == 1:
     lbl_pp, pp = xavgs[0]
     dll = abs(pp - np.mean(cluster_lines_lr.lls))
@@ -366,12 +477,9 @@ def show_points(fr, pts, th):
   for x, y in pts:
     x *= w
     y *= h
-    try:
-      x = int(round(x))
-      y = int(round(y))
-      cv2.circle(fr, (x, y), th, (255, 255, 255), thickness=-1)
-    except:
-      pass
+    x = int(round(x))
+    y = int(round(y))
+    cv2.circle(fr, (x, y), th, (255, 255, 255), thickness=-1)
 
 def show_lines(fr, lines, th):
   h, w = fr.shape
@@ -380,27 +488,27 @@ def show_lines(fr, lines, th):
     y0 *= h
     x1 *= w
     y1 *= h
-    try:
-      x0 = int(round(x0))
-      y0 = int(round(y0))
-      x1 = int(round(x1))
-      y1 = int(round(y1))
-      cv2.line(fr, (x0, y0), (x1, y1), (255, 255, 255), thickness=th)
-    except:
-      pass
+    x0 = int(round(x0))
+    y0 = int(round(y0))
+    x1 = int(round(x1))
+    y1 = int(round(y1))
+    cv2.line(fr, (x0, y0), (x1, y1), (255, 255, 255), thickness=th)
+
+def gaussian_blur(fr):
+  return cv2.GaussianBlur(fr, (25, 25), 0)
 
 def detect_lanes(fr, screen=None):
   pipeline = (
     resize,
     crop_road,
-    #blur,
     filter_lanecolor,
     to_grayscale,
+    blur,
     transform_topdown,
-    lanes,
-    edges,
+    #lanes,
+    #edges,
     hough,
-    untransform_topdown,
+    #untransform_topdown,
   )
 
   status_str = []
@@ -421,7 +529,7 @@ def detect_lanes(fr, screen=None):
     status_str.append('--> %d %s' % (int(stage_time*1000), img_step.__name__))
     if hasattr(img_step, 'stage_debug_text'):
       status_str.append(img_step.stage_debug_text)
-    if DEBUG:
+    if DEBUG and img_step.__name__ != 'hough':
       cv2.imshow(img_step.__name__, fr)
     if img_step.__name__ == 'crop_road':
       inter = fr.copy()
@@ -438,6 +546,8 @@ def detect_lanes(fr, screen=None):
     screen.addstr(1, 0, '\n'.join(status_str)+'\n')
     screen.refresh()
     detect_lanes.frnum += 1
+  
+  return fr
 
 def main(screen):
   #vid = cv2.VideoCapture('driving_long.mp4')
@@ -460,4 +570,8 @@ def main(screen):
       break
 
 if __name__ == '__main__':
+  VERBOSE = True
+  DEBUG = True
+  #screen = CursesMock()
+  #main(screen)
   curses.wrapper(main)
