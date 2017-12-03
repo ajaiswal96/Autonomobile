@@ -7,14 +7,14 @@ import time
 
 CAM_ID = 0
 
-P, I, D = 0.2, 0.0, 0.02
+SAMPLE_LEN = 3
+
+P, I, D = 70, 1, 10
 
 def to_error(ll, rr, th):
   if abs(th) > 35:
     return -th/90.0
   return 0.5 - (rr+ll)/2
-  #th /= 20
-  #return th
 
 def clamp(val, lower, upper):
   if val < lower: return lower
@@ -44,14 +44,38 @@ def main():
 
   cardriver.set_speed(3)
 
+  err_hist = deque()
+  time_hist = deque()
+
   try:
     while True:
       err = get_err(cam, recorder)
+      now = time.time()
       if err is None: continue
-      steer = int(round(err*80))
+
+      err_hist.append(err)
+      time_hist.append(now)
+
+      #while now - time_hist[0] > TIME_HIST:
+      while len(time_hist) > SAMPLE_LEN:
+        time_hist.popleft()
+        err_hist.popleft()
+
+      slope = np.polyfit(time_hist, err_hist, 1)[0]
+      total = np.sum(err_hist)
+
+      print total / len(err_hist)
+
+      steer = int(round(
+          P * -err_hist[-1]
+        + I * -total / len(err_hist)
+        + D * -slope
+      ))
+
       steer = clamp(steer, -10, 10)
-      print err, steer
-      cardriver.set_steering(-steer)
+
+      #print '%0.2f %0.2f %d' % (err, slope, steer)
+      cardriver.set_steering(steer)
   finally:
     cardriver.reset()
 

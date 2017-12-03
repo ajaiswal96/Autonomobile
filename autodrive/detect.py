@@ -1,12 +1,11 @@
 import cv2
 import numpy as np
 import matplotlib.pyplot as plt
+import pylab as plt
 from scipy import stats
 from scipy import signal
 import time
 import gauss
-from sklearn.cluster import DBSCAN
-from sklearn.linear_model import RANSACRegressor
 import curses
 import operator
 from collections import deque
@@ -22,7 +21,7 @@ HORIZON = 0.7
 # Matrix to transform the image into a topdown view
 TOPDOWN = (
   +0.00, +1.00,   # top left, top right
-  -1.50, +2.50,   # bottom left, bottom right
+  -0.80, +1.80,   # bottom left, bottom right
 )
 
 # nxn - how big the kernels are
@@ -37,7 +36,7 @@ LANE_COLOR_RANGE = (
   #(130, 255, 255)
   #( 50,  80,  80),
   #(120, 255, 255)
-  ( 35,  25,  80),
+  ( 35,  15,  80),
   (120, 220, 255)
 )
 
@@ -49,6 +48,8 @@ LATERAL_CUTOFF = 0.75
 
 WIDTH = 320
 HEIGHT = 240
+
+record_frame = None
 
 def filter_lanecolor(fr):
   hsv = cv2.cvtColor(fr, cv2.COLOR_BGR2HSV)
@@ -96,7 +97,10 @@ def untransform_topdown(fr):
 def crop_road(fr):
   h, w, c = fr.shape
   new_h = int(round(h*HORIZON))
-  return fr[new_h:, :]
+  cropped = fr[new_h:, :]
+  global record_frame
+  record_frame = cropped.copy()
+  return cropped
 
 def blur(fr):
   img = cv2.GaussianBlur(fr, (BLUR_KERN_SIZE, BLUR_KERN_SIZE), 0)
@@ -253,38 +257,77 @@ def hough(fr):
     th = None
 
   # find left and right by looking near bottom of frame
-  fr_lower_ll = signal.convolve(np.amax(fr[h-10:h, :w/2], 0), signal.hann(w/20))
-  fr_lower_rr = signal.convolve(np.amax(fr[h-10:h, w/2:], 0), signal.hann(w/20))
-  if fr_lower_ll.max() > 200:
-    ll = float(fr_lower_ll.argmax()) / w
-  else:
-    ll = None
-  if fr_lower_rr.max() > 200:
-    rr = float(fr_lower_rr.argmax() + w/2) / w
-  else:
-    rr = None
+  thresh = h/5
+  fr_lower = signal.convolve(np.mean(fr[h-thresh:h,:], axis=0), signal.hann(w/10), mode='same')
+  pks = [float(pk)/w for pk in signal.find_peaks_cwt(fr_lower, np.arange(1,5))]
+
+  now = time.time()
 
   if not hasattr(hough, 'prev_ll'):
-    hough.prev_ll = w/4
-    hough.prev_rr = 3*w/4
+    hough.prev_ll = deque()
+    hough.prev_rr = deque()
+    hough.prev_time = deque()
+    if len(pks) == 2:
+      ll, rr = sorted(pks)
+    else:
+      ll, rr = 0.3, 0.7
+  else:
+    if len(pks) >= 2:
+      print 'xx xx'
+      closest_ll = 100
+      closest_rr = 100
+      med_ll = np.mean(hough.prev_ll)
+      med_rr = np.mean(hough.prev_rr)
+      for pk in pks:
+        if abs(med_ll-pk) < abs(med_ll-closest_ll): closest_ll = pk
+        if abs(med_rr-pk) < abs(med_rr-closest_rr): closest_rr = pk
+      if closest_rr - closest_ll < 0.25:
+        if abs(med_ll-closest_ll) < abs(med_rr-closest_rr):
+          ll = closest_ll
+          rr = ll + np.median(hough.prev_rr)-np.median(hough.prev_ll)
+        else:
+          rr = closest_rr
+          ll = rr - np.median(hough.prev_rr)-np.median(hough.prev_ll)
+      else:
+        ll = closest_ll
+        rr = closest_rr
+      #if abs(closest_ll-med_ll) < 0.1: ll = closest_ll
+      #else: ll = med_ll
+      #if abs(closest_rr-med_rr) < 0.1: rr = closest_rr
+      #else: rr = med_rr
+    elif len(pks) == 1:
+      print 'xx'
+      pk = pks[0]
+      med_ll = np.median(hough.prev_ll)
+      med_rr = np.median(hough.prev_rr)
+      if abs(pk-med_ll) > abs(pk-med_rr):
+        rr = pk
+        #ll = med_ll + rr-med_rr
+        ll = rr - (med_rr-med_ll)
+      else:
+        ll = pk
+        #rr = med_rr + ll-med_ll
+        rr = ll + (med_rr-med_ll)
+    else:
+      print ''
+      ll = np.median(hough.prev_ll)
+      rr = np.median(hough.prev_rr)
 
-  prev_w = hough.prev_rr - hough.prev_ll
+  hough.prev_ll.append(ll)
+  hough.prev_rr.append(rr)
+  hough.prev_time.append(now)
 
-  if ll is None and rr is None:
-    ll = hough.prev_ll
-    rr = hough.prev_rr
-  if ll is None:
-    ll = rr - prev_w
-  if rr is None:
-    rr = ll + prev_w
-
-  hough.prev_ll = ll
-  hough.prev_rr = rr
+  #while now - hough.prev_time[0] > 1:
+  while len(hough.prev_time) > 4:
+    hough.prev_ll.popleft()
+    hough.prev_rr.popleft()
+    hough.prev_time.popleft()
 
   # show the debug frame
   raw_lines = np.zeros(fr.shape, dtype=np.uint8)
+  raw_lines = fr
   show_lines(raw_lines, lines_sorted, 1)
-  show_points(raw_lines, [(ll, 0.95), (rr, 0.95)], 5)
+  show_points(raw_lines, [(ll, 1.0), (rr, 1.0)], 3)
   if th is not None:
     p0 = (0.5, 1.0)
     p1 = (0.5+0.5*np.sin(np.radians(th)),
@@ -293,10 +336,16 @@ def hough(fr):
   if DEBUG:
     cv2.imshow('raw_lines', raw_lines)
   if RECORDER is not None:
-    out = cv2.resize(raw_lines, (640, 480))
-    out = cv2.cvtColor(out, cv2.COLOR_GRAY2BGR)
+    out1 = cv2.resize(raw_lines, (640, 240))
+    out1 = cv2.cvtColor(out1, cv2.COLOR_GRAY2BGR)
+    if record_frame is not None:
+      out2 = cv2.resize(record_frame, (640, 240))
+    else:
+      out2 = np.zeros(out1.shape)
+    out = np.zeros((480, 640, 3), dtype=np.uint8)
+    out[:240, :, :] = out1
+    out[240:, :, :] = out2
     RECORDER.write(out)
-
 
   return ll, rr, th
 
