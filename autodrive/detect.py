@@ -273,7 +273,6 @@ def hough(fr):
       ll, rr = 0.3, 0.7
   else:
     if len(pks) >= 2:
-      print 'xx xx'
       closest_ll = 100
       closest_rr = 100
       med_ll = np.mean(hough.prev_ll)
@@ -296,7 +295,6 @@ def hough(fr):
       #if abs(closest_rr-med_rr) < 0.1: rr = closest_rr
       #else: rr = med_rr
     elif len(pks) == 1:
-      print 'xx'
       pk = pks[0]
       med_ll = np.median(hough.prev_ll)
       med_rr = np.median(hough.prev_rr)
@@ -309,7 +307,6 @@ def hough(fr):
         #rr = med_rr + ll-med_ll
         rr = ll + (med_rr-med_ll)
     else:
-      print ''
       ll = np.median(hough.prev_ll)
       rr = np.median(hough.prev_rr)
 

@@ -9,7 +9,7 @@ CAM_ID = 0
 
 SAMPLE_LEN = 3
 
-P, I, D = 70, 1, 10
+P, I, D = 40, 0, 10
 
 def to_error(ll, rr, th):
   if abs(th) > 35:
@@ -64,13 +64,13 @@ def main():
       slope = np.polyfit(time_hist, err_hist, 1)[0]
       total = np.sum(err_hist)
 
-      print total / len(err_hist)
+      p = P * -err_hist[-1]
+      i = I * -total / len(err_hist)
+      d = D * -slope
 
-      steer = int(round(
-          P * -err_hist[-1]
-        + I * -total / len(err_hist)
-        + D * -slope
-      ))
+      print '%0.1f %0.1f %0.1f' % (p, i, d)
+
+      steer = int(round(p+i+d))
 
       steer = clamp(steer, -10, 10)
 
