@@ -15,9 +15,10 @@ from Queue import Empty
 from workerutil import ControlCommand
 from laneproc import lane_proc
 
+import cardriver
 import cv2
-import time
 import signal
+import time
 
 
 # OpenCV camera ID
@@ -88,30 +89,44 @@ def control_loop(subprocesses, run, freq=10):
   # the current state of all of the workers
   ws = [WorkerState() for _ in subprocesses]
 
-  while run.is_set():
-    start_time = time.time()
+  try:
+    while run.is_set():
+      start_time = time.time()
 
-    for i, sp in enumerate(subprocesses):
-      while True:
-        # get the command
-        try: cmd = sp.ctrl_q.get_nowait()
-        except Empty: break
+      # update all of the worker states
+      for i, sp in enumerate(subprocesses):
+        while True:
+          # get the command
+          try: cmd = sp.ctrl_q.get_nowait()
+          except Empty: break
 
-        # interpret the command
-        assert isinstance(cmd, ControlCommand)
-        if   cmd.cmdtype == 'start': ws[i].active = True
-        elif cmd.cmdtype == 'stop' : ws[i].active = False
-        elif cmd.cmdtype == 'steer': ws[i].steer = cmd.value
-        elif cmd.cmdtype == 'speed': ws[i].speed = cmd.value
-        else: raise TypeError('Invalid ControlCommand type')
+          # interpret the command
+          assert isinstance(cmd, ControlCommand)
+          if   cmd.cmdtype == 'start': ws[i].active = True
+          elif cmd.cmdtype == 'stop' : ws[i].active = False
+          elif cmd.cmdtype == 'steer': ws[i].steer = cmd.value
+          elif cmd.cmdtype == 'speed': ws[i].speed = cmd.value
+          else: raise TypeError('Invalid ControlCommand type')
 
-    print ws
+      # choose the one with the highest prio to set
+      for ww in ws:
+        if ws.active:
+          cardriver.set_speed(ws.speed)
+          cardriver.set_steering(ws.steer)
+          break
+      else:
+        raise RuntimeError('No controller was controlling the car')
 
-    end_time = time.time()
-    wait_time = 1.0 / freq - (end_time - start_time)
+      print ws
 
-    if wait_time > 0: time.sleep(wait_time)
+      # wait a while so we poll at the right frequency
+      end_time = time.time()
+      wait_time = 1.0 / freq - (end_time - start_time)
 
+      if wait_time > 0: time.sleep(wait_time)
+
+  finally:
+    cardriver.reset()
 
 def main():
   '''Initialize the camera, spin up the workers, and start the main loop'''
