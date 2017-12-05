@@ -14,6 +14,7 @@ from Queue import Empty
 
 from workerutil import ControlCommand
 from laneproc import lane_proc
+from stopsignproc import stopsign_proc
 
 import cardriver
 import cv2
@@ -26,8 +27,12 @@ CAM_ID = 0
 
 # Controlling subprocesses
 SUBPROCESSES = (
+  stopsign_proc,
   lane_proc,
 )
+
+# When true, don't do the actual car things
+TESTMODE = True
 
 
 class ImageProcessor(object):
@@ -107,12 +112,12 @@ def control_loop(subprocesses, run, freq=10):
 
       # choose the one with the highest prio to set
       for ww in ws:
-        if ww.active:
+        if ww.active and not TESTMODE:
           cardriver.set_speed(ww.speed)
           cardriver.set_steering(ww.steer)
           break
       else:
-        cardriver.reset()
+        if not TESTMODE: cardriver.reset()
 
       print ws
 
@@ -123,7 +128,7 @@ def control_loop(subprocesses, run, freq=10):
       if wait_time > 0: time.sleep(wait_time)
 
   finally:
-    cardriver.reset()
+    if not TESTMODE: cardriver.reset()
 
 def main():
   '''Initialize the camera, spin up the workers, and start the main loop'''

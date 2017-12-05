@@ -26,9 +26,7 @@ SPEED_TURN = 4
 
 def lane_proc(img_req, img_q, cmd_q):
   '''The lane guidance worker process.'''
-  # open up a recorder to save the run
-  fourcc = cv2.cv.CV_FOURCC(*'XVID')
-  recorder = cv2.VideoWriter('output.avi', fourcc, 20.0, (640, 480))
+  recorder = get_recorder('output.avi')
 
   # this process is always active
   cmd_q.put(ControlCommand('start'))
@@ -81,3 +79,15 @@ def to_error(ll, rr, th):
   if None in (ll, rr, th):
     return None
   return 0.5 - (rr+ll)/2
+
+def get_recorder(out_fname, codec='XVID'):
+  '''Get a cv2 VideoWriter instance.'''
+  major_ver, minor_ver, subminor_ver = cv2.__version__.split('.')
+
+  if int(major_ver) < 3 :
+    fourcc = cv2.cv.CV_FOURCC(*codec)
+  else:
+    fourcc = cv2.VideoWriter_fourcc(*codec)
+
+  return cv2.VideoWriter(out_fname, fourcc, 20.0, (640, 480))
+
