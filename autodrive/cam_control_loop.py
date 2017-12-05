@@ -11,7 +11,9 @@ from multiprocessing import Queue
 from threading import Thread
 from threading import Event
 from Queue import Empty
+
 from workerutil import ControlCommand
+from laneproc import lane_proc
 
 import cv2
 import time
@@ -26,6 +28,7 @@ FPS = 60
 
 # Controlling subprocesses
 SUBPROCESSES = (
+  lane_proc,
 )
 
 
@@ -98,8 +101,8 @@ def control_loop(subprocesses, run, freq=10):
         assert isinstance(cmd, ControlCommand)
         if   cmd.cmdtype == 'start': ws[i].active = True
         elif cmd.cmdtype == 'stop' : ws[i].active = False
-        elif cmd.cmdtype == 'steer': wd[i].steer = cmd.value
-        elif cmd.cmdtype == 'speed': wd[i].speed = cmd.value
+        elif cmd.cmdtype == 'steer': ws[i].steer = cmd.value
+        elif cmd.cmdtype == 'speed': ws[i].speed = cmd.value
         else: raise TypeError('Invalid ControlCommand type')
 
     print ws

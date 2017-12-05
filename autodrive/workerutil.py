@@ -23,3 +23,8 @@ def get_img(img_req, img_q):
   img_req.send(True)
   return img_q.get()
 
+
+def clamp(val, lower, upper):
+  if val < lower: return lower
+  if val > upper: return upper
+  return val
