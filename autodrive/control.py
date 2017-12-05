@@ -7,13 +7,14 @@ import time
 
 CAM_ID = 0
 
-SAMPLE_LEN = 3
+SAMPLE_LEN = 2
 
-P, I, D = 40, 0, 10
+#P, I, D = 40, 0, 10
+P, I, D = 80, 0, 20
 
 def to_error(ll, rr, th):
-  if abs(th) > 35:
-    return -th/90.0
+  #if abs(th) > 35:
+  #  return -th/90.0
   return 0.5 - (rr+ll)/2
 
 def clamp(val, lower, upper):
@@ -42,7 +43,7 @@ def main():
 
   raw_input()
 
-  cardriver.set_speed(3)
+  cardriver.set_speed(4)
 
   err_hist = deque()
   time_hist = deque()

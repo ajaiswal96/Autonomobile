@@ -15,8 +15,8 @@ import time
 # Scaling factors for each of the feedback system parameters
 P, I, D = 40, 0, 10
 
-# How many seconds of history to save for the D term
-DERIV_HISTORY_SEC = 0.5
+# How many points of history to save for the D term
+DERIV_HISTORY_LEN = 3
 
 # How fast the car should go
 SPEED_NORMAL = 3
@@ -28,7 +28,7 @@ def lane_proc(img_req, img_q, cmd_q):
   '''The lane guidance worker process.'''
   # open up a recorder to save the run
   fourcc = cv2.cv.CV_FOURCC(*'XVID')
-  recorder = cv2.VideoWriter('output.mp4', fourcc, 20.0, (640, 480))
+  recorder = cv2.VideoWriter('output.avi', fourcc, 20.0, (640, 480))
 
   # this process is always active
   cmd_q.put(ControlCommand('start'))
@@ -50,7 +50,8 @@ def lane_proc(img_req, img_q, cmd_q):
     time_hist.append(now)
 
     # prune out the old errors
-    while now - time_hist[0] > DERIV_HISTORY_SEC:
+    #while now - time_hist[0] > DERIV_HISTORY_SEC:
+    while len(time_hist) > DERIV_HISTORY_LEN:
       err_hist.popleft()
       time_hist.popleft()
 
@@ -59,9 +60,9 @@ def lane_proc(img_req, img_q, cmd_q):
     total = np.sum(err_hist)
     slope = np.polyfit(time_hist, err_hist, 1)[0]
 
-    p = P * cur_err
-    i = I * total
-    d = D * slope
+    p = P * -cur_err
+    i = I * -total
+    d = D * -slope
 
     # calculate the steering amount
     steer = int(round(p+i+d))
@@ -69,10 +70,10 @@ def lane_proc(img_req, img_q, cmd_q):
 
     cmd_q.put(ControlCommand('steer', steer))
 
-    if abs(steer) > 6:
-      cmd_q.put(ControlCommand('speed', SPEED_TURN))
-    else:
-      cmd_q.put(ControlCommand('speed', SPEED_NORMAL))
+    #if abs(steer) > 9:
+    #  cmd_q.put(ControlCommand('speed', SPEED_TURN))
+    #else:
+    #  cmd_q.put(ControlCommand('speed', SPEED_NORMAL))
 
 
 def to_error(ll, rr, th):

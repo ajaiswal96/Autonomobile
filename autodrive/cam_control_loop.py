@@ -22,10 +22,7 @@ import time
 
 
 # OpenCV camera ID
-CAM_ID = 1
-
-# Video capture frames per second
-FPS = 60
+CAM_ID = 0
 
 # Controlling subprocesses
 SUBPROCESSES = (
@@ -110,12 +107,12 @@ def control_loop(subprocesses, run, freq=10):
 
       # choose the one with the highest prio to set
       for ww in ws:
-        if ws.active:
-          cardriver.set_speed(ws.speed)
-          cardriver.set_steering(ws.steer)
+        if ww.active:
+          cardriver.set_speed(ww.speed)
+          cardriver.set_steering(ww.steer)
           break
       else:
-        raise RuntimeError('No controller was controlling the car')
+        cardriver.reset()
 
       print ws
 
@@ -133,7 +130,9 @@ def main():
 
   # open the camera
   cam = cv2.VideoCapture(CAM_ID)
-  cam.set(cv2.CAP_PROP_FPS, FPS)
+
+  # block until we're ready to go
+  raw_input()
 
   # the worker processes
   sps = [ImageProcessor(sp) for sp in SUBPROCESSES]
