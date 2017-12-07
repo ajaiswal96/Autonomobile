@@ -73,7 +73,7 @@ def capture_loop(camera, subprocesses, run):
         sp.req_sock.recv()
 
 
-def control_loop(subprocesses, run, freq=10):
+def control_loop(subprocesses, run, freq=40):
   '''Reads commands from workers, and applies them to the motors.'''
 
   class WorkerState(object):
@@ -135,6 +135,7 @@ def main():
 
   # open the camera
   cam = cv2.VideoCapture(CAM_ID)
+  cam.read()
 
   # block until we're ready to go
   raw_input()
