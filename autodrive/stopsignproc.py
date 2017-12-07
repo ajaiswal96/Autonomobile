@@ -18,11 +18,15 @@ def stopsign_proc(img_req, img_q, cmd_q):
   '''The stop sign worker process.'''
   classifier = cv2.CascadeClassifier(STOPSIGN_PARAMS)
 
+  suggested_stop_times = []
+
   while True:
     # get a frame, and save a copy of it for later
     fr = get_img(img_req, img_q)
     fr = cv2.resize(fr, (320, 240))
     w, h = fr.shape[:2]
+
+    now = time.time()
 
     color_fr = fr.copy()
 
@@ -30,26 +34,20 @@ def stopsign_proc(img_req, img_q, cmd_q):
     fr = cv2.cvtColor(fr, cv2.COLOR_BGR2GRAY)
     signs = classifier.detectMultiScale(fr, 1.02, 10)
 
-    # classify the signs
-    #largest_sign = -1
-    #for x, y, w, h in signs:
-    #  subfr = color_fr[y:y+h, x:x+w, :]
-    #  subft = cv2.resize(subfr, (25, 25))
-    #  if is_stopsign(subfr) and w*h > largest_sign:
-    #    largest_sign = w*h
+    for x, y, w, h in signs:
+      sz = (float(w) + float(h)) / 2.0
+      dt = px2time(sz)
+      suggested_stop_times.append(now + dt)
 
-    if len(signs) > 0:
-      print 'sign!!!!!', len(signs)
-
-    # saw a big stop sign, so stop for a bit
-    #if float(largest_sign) / w > SIGN_SIZE_THRESHOLD:
-    if len(signs) > 0:
-      time.sleep(0.5)
+    if len(suggested_stop_times) > 3 and np.median(suggested_stop_times) < now:
       cmd_q.put(ControlCommand('start'))
       cmd_q.put(ControlCommand('speed', 0))
       time.sleep(2)
       cmd_q.put(ControlCommand('stop'))
       time.sleep(5)
+
+def px2time(sign_size):
+  -0.0375 * sign_size + 2.75
 
 def is_stopsign(fr):
   '''Determine if a frame contains a stop sign'''
