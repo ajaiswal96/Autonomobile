@@ -39,18 +39,15 @@ def smiley_proc(img_req, img_q, cmd_q):
       isSign = True
       if(w >= 60 and h >= 60):
         lastframes.append(1)
-      else:
-        lastframes.append(0) 
+        break
 
     if not isSign:
       lastframes.append(0)     
 
-    if len(suggested_stop_times) >= SMILEY_COUNT and lastframes.count(1) >= 5: 
+    if lastframes.count(1) >= 5: 
       cmd_q.put(ControlCommand('start'))
       cmd_q.put(ControlCommand('speed', 0))
-      suggested_stop_times = []
 
     else:
       cmd_q.put(ControlCommand('stop'))
-      suggested_stop_times = []    
 

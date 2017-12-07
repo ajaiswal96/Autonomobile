@@ -15,6 +15,7 @@ from Queue import Empty
 from workerutil import ControlCommand
 from laneproc import lane_proc
 from stopsignproc import stopsign_proc
+from smileyproc import smiley_proc
 
 import cardriver
 import cv2
@@ -27,12 +28,13 @@ CAM_ID = 0
 
 # Controlling subprocesses
 SUBPROCESSES = (
+  smiley_proc,
   stopsign_proc,
   lane_proc,
 )
 
 # When true, don't do the actual car things
-TESTMODE = False
+TESTMODE = True
 
 
 class ImageProcessor(object):
