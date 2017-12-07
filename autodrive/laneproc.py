@@ -34,6 +34,7 @@ def lane_proc(img_req, img_q, cmd_q):
 
   err_hist = deque()
   time_hist = deque()
+  steer_hist = deque()
 
   while True:
     # get the latest error
@@ -65,13 +66,21 @@ def lane_proc(img_req, img_q, cmd_q):
     # calculate the steering amount
     steer = int(round(p+i+d))
     steer = clamp(steer, -10, 10)
+    
+    steer_hist.append(steer)
+    while len(steer_hist) > 10:
+      steer_hist.popleft()
 
-    cmd_q.put(ControlCommand('steer', steer))
+    last_n = []
+    for i in xrange(len(steer_hist)-3, len(steer_hist)):
+      last_n.append(steer_hist[i])
 
-    #if abs(steer) > 9:
-    #  cmd_q.put(ControlCommand('speed', SPEED_TURN))
-    #else:
-    #  cmd_q.put(ControlCommand('speed', SPEED_NORMAL))
+    cmd_q.put(ControlCommand('steer', int(round(np.median(last_n)))))
+
+    if abs(np.mean(steer_hist)) > 9.5:
+      cmd_q.put(ControlCommand('speed', SPEED_TURN))
+    else:
+      cmd_q.put(ControlCommand('speed', SPEED_NORMAL))
 
 
 def to_error(ll, rr, th):
