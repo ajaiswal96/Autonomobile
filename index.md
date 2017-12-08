@@ -1,4 +1,13 @@
 ## Blog
+## 11/23/17
+### Kevin 
+Has lane detection roughly working via color filtering. Lane detection through edge detection also works but has too much noise. 
+
+### Prashant
+Is working on creating a classifier for a stop sign so the car stops for a stop sign like a normal car would. 
+
+### Anubhav
+Is working on creating positive and negative images in order to train a classifier to recognize a frowny face, and have the car stop once that face is detected. 
 
 ## 11/16/17
 
