@@ -11,9 +11,8 @@ from collections import deque
 
 SMILEY_PARAMS = 'resources/smiley_object_cascade.xml'
 
-SMILEY_SIZE_THRESHOLD = 0.1
-
-SMILEY_COUNT = 1
+COUNT_THRESHOLD = 2
+SIZE_THRESHOLD = 100
 
 def smiley_proc(img_req, img_q, cmd_q):
   '''The stop sign worker process.'''
@@ -30,21 +29,20 @@ def smiley_proc(img_req, img_q, cmd_q):
     now = time.time()
 
     # do the cascade classifier
-    signs = classifier.detectMultiScale(fr, 1.1, 3)
+    signs = classifier.detectMultiScale(fr, 1.05, 5)
 
     isSign = False
 
     for x, y, w, h in signs:
       isSign = True
-      print w, h
-      if(w >= 60 and h >= 60):
+      if w >= COUNT_THRESHOLD and h >= COUNT_THRESHOLD:
         lastframes.append(1)
         break
 
     if not isSign:
       lastframes.append(0)     
 
-    if lastframes.count(1) >= 2:
+    if lastframes.count(1) >= COUNT_THRESHOLD:
       cmd_q.put(ControlCommand('start'))
       cmd_q.put(ControlCommand('speed', 0))
 
